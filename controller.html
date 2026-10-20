@@ -46,6 +46,7 @@
   .pads { display: grid; grid-template-columns: 1fr 1.4fr 1fr; gap: 10px; width: 100%; }
   .pad { font: inherit; font-size: 20px; font-weight: 800; border: 0; border-radius: 20px; height: 90px; color: var(--leaf-deep); background: var(--green); touch-action: none; -webkit-user-select: none; user-select: none; }
   .pad.jump { background: var(--banana); }
+  .pads:has(#leftPad[hidden]) .pad.jump { grid-column: 1 / -1; }
   .pad.run { grid-column: 1 / -1; height: 70px; }
   .pad.down { filter: brightness(.8); }
   .opts { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; align-items: center; font-size: 15px; }
@@ -55,6 +56,11 @@
   .rank div { display: flex; justify-content: space-between; font-size: 22px; background: rgba(255,255,255,.08); border-radius: 16px; padding: 8px 16px; }
   form { display: flex; flex-direction: column; gap: 12px; }
   form input { font: inherit; font-size: 24px; padding: 12px 16px; border-radius: 16px; border: 0; text-transform: uppercase; text-align: center; }
+  .hold { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .hold button { font: inherit; border: 3px solid transparent; border-radius: 18px; padding: 12px 8px; background: rgba(255,255,255,.1); color: var(--cream); display: flex; flex-direction: column; gap: 2px; }
+  .hold button b { font-size: 18px; }
+  .hold button span { font-size: 14px; opacity: .75; }
+  .hold button[aria-pressed="true"] { border-color: var(--banana); background: rgba(255,210,63,.2); }
   [hidden] { display: none !important; }
 </style>
 </head>
@@ -79,6 +85,11 @@
     <h2>Who's playing?</h2>
     <div id="players" style="display:flex;flex-direction:column;gap:12px"></div>
     <button class="btn ghost" id="addBtn" type="button">+ Add player</button>
+    <h2>How will they hold the phone?</h2>
+    <div class="hold" id="hold">
+      <button type="button" data-p="0" aria-pressed="true"><b>🤲 In both hands</b><span>Run, jump and lean</span></button>
+      <button type="button" data-p="1" aria-pressed="false"><b>👖 In a pocket</b><span>Run and jump</span></button>
+    </div>
     <button class="btn" id="startBtn" type="button">Start game</button>
   </section>
 
@@ -89,8 +100,8 @@
     <p id="msg">Hold the phone in front of you with both hands.<br>Run on the spot, jump, lean left and right!</p>
     <div class="label">Running</div>
     <div class="meter"><i id="meter"></i></div>
-    <div class="label">Leaning</div>
-    <div class="leanbar"><i id="leanDot"></i></div>
+    <div id="leanWrap" style="width:100%"><div class="label">Leaning</div>
+    <div class="leanbar"><i id="leanDot"></i></div></div>
     <div class="pads">
       <button class="pad" id="leftPad" type="button">⬅</button>
       <button class="pad jump" id="jumpPad" type="button">Jump</button>
@@ -180,10 +191,11 @@ function onTv(d) {
   if (d.t === 'turn') {
     $('avatar').textContent = ANIMALS[d.animal] || '🐒';
     $('who').textContent = `${d.name}'s turn${d.total > 1 ? ` (${d.idx + 1} of ${d.total})` : ''}`;
-    $('msg').innerHTML = 'Hold the phone in front of you with both hands.<br><b>Jump to start!</b>';
+    $('msg').innerHTML = (pocket ? 'Put the phone in a pocket or belt.' : 'Hold the phone upright in front of you with both hands.') + '<br><b>Jump to start!</b>';
     show('play');
   }
-  if (d.t === 'running') $('msg').innerHTML = 'Run on the spot, jump, lean left and right!';
+  if (d.t === 'turn' || d.t === 'running') recenterAt = performance.now() + 300;
+  if (d.t === 'running') $('msg').innerHTML = pocket ? 'Run on the spot and jump!' : 'Run on the spot, jump, lean left and right!';
   if (d.t === 'bump' && navigator.vibrate) navigator.vibrate(120);
   if (d.t === 'done') {
     const medals = ['🥇', '🥈', '🥉', '🏅'];
@@ -196,7 +208,8 @@ function onTv(d) {
 // Running on the spot makes the phone shake rhythmically: we measure how much the
 // acceleration varies over the last 0.8 s. A real jump has a short "weightless"
 // moment (free fall). Leaning sideways tilts the phone, which shifts gravity left/right.
-let sens = 1, flip = load('jj-flip', false), level = 0, lean = 0, gx = 0, motionSeen = false, motionOn = false;
+let sens = 1, flip = load('jj-flip', false), pocket = load('jj-pocket', false), level = 0, lean = 0, motionSeen = false, motionOn = false;
+let roll = 0, neutral = null, recenterAt = 0;
 let manualRun = 0, manualLean = 0;
 const buf = [];
 let ffStart = 0, peakAt = 0, lastJump = 0;
@@ -214,10 +227,15 @@ function onMotion(e) {
   const target = clamp((sd * sens - 1.3) / 5, 0, 1);
   level += (target - level) * (target > level ? .35 : .08);
 
-  // lean: smoothed sideways gravity, about 25° of tilt = full lean
-  gx += (a.x - gx) * .12;
-  const l = clamp((gx * (flip ? -1 : 1)) / 4.2, -1, 1);
-  lean = Math.abs(l) < .25 ? 0 : l;
+  // lean: sideways tilt angle of the phone, measured from where it was held at the start
+  // of the turn. The middle also drifts slowly toward how the phone is held now, so a
+  // crooked grip can never keep the runner stuck on one side.
+  const r = Math.atan2(a.x, Math.hypot(a.y, a.z)) * 180 / Math.PI;
+  roll += (r - roll) * .15;
+  if (neutral === null || (recenterAt && t >= recenterAt)) { neutral = roll; recenterAt = 0; }
+  neutral += (roll - neutral) * .003;
+  const l = clamp(((roll - neutral) * (flip ? -1 : 1)) / 18, -1, 1);
+  lean = pocket || Math.abs(l) < .3 ? 0 : l;
 
   // jump: weightless moment, or a strong push-off followed by lift-off
   if (mag > 22 / sens) peakAt = t;
@@ -254,8 +272,14 @@ async function enableMotion() {
   setTimeout(() => { if (!motionSeen) $('msg').textContent = 'No motion sensor found. Use the buttons below.'; }, 3000);
 }
 
-$('startBtn').onclick = async () => { await enableMotion(); send({ t: 'start', players: cleanRoster() }); };
-$('againBtn').onclick = () => send({ t: 'start', players: cleanRoster() });
+$('startBtn').onclick = async () => { await enableMotion(); send({ t: 'start', players: cleanRoster(), pocket }); };
+$('againBtn').onclick = () => send({ t: 'start', players: cleanRoster(), pocket });
+function renderHold() {
+  document.querySelectorAll('#hold button').forEach(b => b.setAttribute('aria-pressed', (b.dataset.p === '1') === pocket));
+  $('leanWrap').hidden = pocket; $('leftPad').hidden = pocket; $('rightPad').hidden = pocket;
+}
+document.querySelectorAll('#hold button').forEach(b => b.onclick = () => { pocket = b.dataset.p === '1'; store('jj-pocket', pocket); renderHold(); });
+renderHold();
 $('changeBtn').onclick = $('toSetup').onclick = () => { send({ t: 'lobby' }); renderPlayers(); show('setup'); };
 
 document.querySelectorAll('#sens button').forEach(b => b.onclick = () => {

@@ -156,7 +156,7 @@ function makeCourse(seed) {
   while (m < MAXV * RUN_TIME + 60) {
     const k = r();
     if (k < .5) items.push({ type: 'log', z: m, done: false });
-    else if (k < .82) items.push({ type: 'bush', z: m, side: r() < .5 ? -1 : 1, done: false });
+    else if (k < .82) items.push(pocketMode ? { type: 'log', z: m, done: false } : { type: 'bush', z: m, side: r() < .5 ? -1 : 1, done: false });
     else items.push({ type: 'puddle', z: m, done: false });
     if (k < .5 && r() < .55) items.push({ type: 'banana', z: m, h: 1.2, x: 0, done: false });
     const bx = (Math.floor(r() * 3) - 1) * LANE;
@@ -167,7 +167,7 @@ function makeCourse(seed) {
 }
 
 // ---------- game state ----------
-let turnIdx = 0, scores = [];
+let turnIdx = 0, scores = [], pocketMode = false;   // pocket mode: no bushes, because leaning can't be detected
 let phase = 'lobby', phaseT = 0;
 let course = [], popups = [];
 const me = { x: 0, lean: 0, dist: 0, speed: 0, run: 0, lastInput: 0, h: 0, vh: 0, stumble: 0, jumpQ: 0, fruit: 0, shake: 0, splash: 0, time: 0 };
@@ -263,7 +263,7 @@ function connectPeer() {
       if (d.t === 'r') { me.run = clamp(+d.v || 0, 0, 1); me.lean = clamp(+d.l || 0, -1, 1); me.lastInput = now(); }
       else if (d.t === 'j') action();
       else if (d.t === 'roster') setRoster(d.players);
-      else if (d.t === 'start') { if (d.players) setRoster(d.players); newGame(); }
+      else if (d.t === 'start') { if (d.players) setRoster(d.players); pocketMode = !!d.pocket; newGame(); }
       else if (d.t === 'lobby') backToLobby();
     });
     conn.on('close', () => { if (phone === conn) { phone = null; updatePhoneStatus(); } });
