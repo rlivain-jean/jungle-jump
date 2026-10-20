@@ -99,7 +99,7 @@ const MAXV = 9;                // metres per second at full effort
 const BASEV = 3.5;             // the runner always jogs at least this fast, running on the spot adds speed
 const GRAV = 9.8, JUMPV = 4.4; // a jump peaks just under 1 m
 const RUN_TIME = 45;           // seconds per turn
-const VERSION = '14';           // the phone reloads itself when it has an older version
+const VERSION = '16';           // the phone reloads itself when it has an older version
 const LOG_H = 0.45;
 
 const ANIMALS = {
@@ -682,22 +682,34 @@ function drawFace(kind, C, R, t) {
 // legs: [liftL, liftR], arms: [[y, rot], [y, rot]], sway, headRot, flop, wag, tuftBob, alpha, air
 function drawCritter(o) {
   const kind = o.kind, C = LOOK[kind];
-  ctx.save(); ctx.translate(o.x, o.y); ctx.rotate(o.rot || 0); ctx.scale(o.u * (o.sx || 1), o.u * (o.sy || 1));
+  // sx/sy squash and stretch the body only; the head stays round. turn narrows everything (spinning).
+  const sx = o.sx || 1, sy = o.sy || 1;
+  ctx.save(); ctx.translate(o.x, o.y); ctx.rotate(o.rot || 0); ctx.scale(o.u * sx * (o.turn ?? 1), o.u * sy);
   if (o.alpha != null) ctx.globalAlpha = o.alpha;
 
   // legs: a lifted foot shows its pale sole
   [[-14, o.legs[0]], [14, o.legs[1]]].forEach(([lx, lift]) => {
-    fur(lx * .75, -10 - lift * .45, 8, 11, C.dark);
-    if (lift > 4 || o.air) blob(lx * .75, -3 - lift * .8, 7, 5 * Math.min(1, lift / 12 + (o.air ? 1 : 0)), C.light);
-    else blob(lx * .75, -1, 8, 4, tint(C.dark, -.2));
+    const fx = lx * .75;
+    fur(fx, -10 - lift * .45, 8, 11, C.dark);
+    const show = o.face ? 0 : Math.min(1, lift / 10 + (o.air ? .8 : 0));
+    if (show > .15) {
+      // seen from behind, a lifted foot shows its paw: a soft sole with little toe beans
+      const fy = -2 - lift * .8, k = show;
+      blob(fx, fy, 9, 7 * k, C.light);
+      blob(fx, fy + 1.5 * k, 4.5, 3.4 * k, '#f2a7b5');
+      [-4.5, 0, 4.5].forEach(tx => blob(fx + tx, fy - 4 * k, 2, 1.8 * k, '#f2a7b5'));
+    } else blob(fx, -1, 8, 4, tint(C.dark, -.2));
   });
 
-  // tails sit behind the body, so they're drawn first
   const wag = o.wag || 0;
+  const drawTail = () => {
   ctx.lineCap = 'round';
-  if (kind === 'monkey') { ctx.strokeStyle = C.dark; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(0, -22); ctx.quadraticCurveTo(26 + wag * 14, -10, 30 + wag * 10, -40); ctx.quadraticCurveTo(32 + wag * 8, -60, 18 + wag * 6, -56); ctx.stroke(); }
-  if (kind === 'lion') { ctx.strokeStyle = C.dark; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(0, -28); ctx.quadraticCurveTo(-30 - wag * 10, -6, -34 - wag * 14, -40); ctx.stroke(); fur(-34 - wag * 14, -44, 8, 9, C.light); }
-  if (kind === 'bear') fur(wag * 4, -26, 8, 7, C.dark);
+  if (kind === 'koala') { fur(wag * 3, -22, 9, 8, C.light); fur(wag * 3 - 2, -23, 6, 5, '#ffffff'); }
+  if (kind === 'monkey') { ctx.strokeStyle = C.dark; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(0, -22); ctx.quadraticCurveTo(40 + wag * 12, -6, 52 + wag * 10, -34); ctx.quadraticCurveTo(58 + wag * 8, -58, 42 + wag * 6, -56); ctx.stroke(); }
+  if (kind === 'lion') { ctx.strokeStyle = C.dark; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(0, -22); ctx.quadraticCurveTo(-44 - wag * 8, -2, -60 - wag * 12, -26); ctx.stroke(); fur(-61 - wag * 12, -30, 9, 10, C.light); }
+  if (kind === 'bear') fur(wag * 4, -24, 9, 8, C.dark);
+  };
+  if (o.face) drawTail();   // facing us: the tail hides behind the body
 
   // arms
   [-1, 1].forEach((sd, i) => {
@@ -709,8 +721,9 @@ function drawCritter(o) {
   // body and head
   ctx.save(); ctx.rotate(o.sway || 0);
   fur(0, -31, kind === 'bear' ? 26 : 24, 22, C.body);
+  if (!o.face) drawTail();  // running away from us: the tail is on show
   const HEAD = 40, HS = 1.35;   // extra-big baby head
-  ctx.save(); ctx.translate(0, -96); ctx.rotate(o.headRot || 0); ctx.scale(HS, HS);
+  ctx.save(); ctx.translate(0, -96); ctx.scale(1 / sx, 1 / sy); ctx.rotate(o.headRot || 0); ctx.scale(HS, HS);
   if (kind === 'lion') for (let a = 0; a < 16; a++) { const r = a / 16 * Math.PI * 2; fur(Math.cos(r) * 38, Math.sin(r) * 38, 18, 18, C.light); }
   const flop = o.flop || 0;
   const ear = (x, y, r, inner) => { fur(x, y, r, r * 1.05, C.body, flop * Math.sign(x)); blob(x, y, r * inner, r * inner * 1.05, C.light, flop * Math.sign(x)); };
@@ -734,8 +747,13 @@ function contactShadow(x, y, w, k = 1) {
   ctx.fillStyle = sg; ctx.beginPath(); ctx.ellipse(x, y, w * k, w * .28 * k, 0, 0, 7); ctx.fill();
 }
 
+let faceAngle = 0, lastFaceT = 0;
 function drawRunner(t) {
   const kind = runner().animal;
+  const wantFace = phase === 'countdown' || phase === 'turn' || t - (me.look || -9) < .9;
+  const dtF = Math.min(.05, t - (lastFaceT || t)); lastFaceT = t;
+  const target = wantFace ? 0 : Math.PI;
+  faceAngle += clamp(target - faceAngle, -dtF * 9, dtF * 9);   // a quick little turn, about a third of a second
   // the child's own animal runs in front of them, centred on the path,
   // and copies every jump and lean
   const u = 1.8, gx = W / 2 + me.x * 260, gy = H - 46, ay = gy - me.h * 210;
@@ -770,8 +788,8 @@ function drawRunner(t) {
     arms, sway, headRot: -sway * 1.6,
     flop: Math.sin(step - .8) * .15 * sp + (air ? -.25 : 0) + landK * .3,
     wag: Math.sin(step + 1) * .5 * (air ? 1.6 : sp + .3), tuftBob: bob * .6,
-    // the animal turns round to smile at the kids during the countdown and after a catch
-    face: phase === 'countdown' || phase === 'turn' || t - (me.look || -9) < .9,
+    // the animal turns round (smoothly) to smile at the kids during the countdown and after a catch
+    face: Math.cos(faceAngle) > 0, turn: Math.abs(Math.cos(faceAngle)) * .85 + .15,
     alpha: me.stumble > 0 && Math.sin(t * 40) > 0 ? .6 : null,
   });
 
@@ -814,11 +832,32 @@ function drawLobby(t) {
 
 // ---------- the happy-dance finale: every animal dances, each with a random dance ----------
 // o is filled in by the dance for time k (seconds since the dance started)
+
+// one smooth bounce cycle: crouch, take off, fly in an arc, land softly, settle.
+// h = height, stretch = vertical squash/stretch factor, airP = 0..1 through the flight
+function bounce(k, period, height) {
+  const c = (k / period) % 1, CROUCH = .18, FLY = .55;        // fractions of the cycle
+  const ease = x => x * x * (3 - 2 * x);
+  if (c < CROUCH) {                                            // dip down before jumping
+    const q = Math.sin(c / CROUCH * Math.PI);
+    return { h: -q * 4, stretch: 1 - .12 * q, crouch: q, air: false, airP: 0, flop: .15 * q };
+  }
+  if (c < CROUCH + FLY) {                                      // smooth arc through the air
+    const p = (c - CROUCH) / FLY, v = 1 - 2 * p;               // v: upward speed, +1 → -1
+    return { h: height * 4 * p * (1 - p), stretch: 1 + .12 * Math.sin(Math.PI * p) * Math.abs(v), crouch: 0, air: true, airP: p, flop: -.3 * v * Math.sin(Math.PI * p) };
+  }
+  const q = (c - CROUCH - FLY) / (1 - CROUCH - FLY);           // soft landing that eases out
+  const squash = Math.sin(Math.PI * ease(Math.min(1, q * 1.4))) * .14;
+  return { h: 0, stretch: 1 - squash, crouch: squash * 4, air: false, airP: 1, flop: squash * 1.5 };
+}
 const DANCES = {
   // bouncy hops with both arms up
   hop(k, o) {
-    const c = (k * 1.8) % 1, h = Math.sin(c * Math.PI); o.y -= h * 70; o.air = h > .1;
-    o.sy = 1 + (h > .1 ? .1 : -.15); o.sx = 2 - o.sy; o.arms = [[-62, .9], [-62, -.9]]; o.legs = [h * 10, h * 10]; o.flop = -.3 * h;
+    const b = bounce(k, 1.1, 70); o.y -= b.h; o.air = b.air;
+    o.sy = b.stretch; o.sx = 2 - b.stretch;
+    const up = b.air ? 1 : 1 - b.crouch;   // arms rise with the jump, drop a little in the crouch
+    o.arms = [[-40 - 22 * up, .3 + .6 * up], [-40 - 22 * up, -.3 - .6 * up]];
+    o.legs = [b.air ? 8 : 0, b.air ? 8 : 0]; o.flop = b.flop;
   },
   // hips sway side to side while the arms wave
   wiggle(k, o) {
@@ -827,8 +866,8 @@ const DANCES = {
   },
   // a hop-and-spin: we squeeze it sideways to fake turning round, showing back then face
   spin(k, o) {
-    const c = (k * .7) % 1, a = c * Math.PI * 2, h = Math.sin(c * Math.PI);
-    o.y -= h * 50; o.sx = Math.abs(Math.cos(a)) * .9 + .1; o.face = Math.cos(a) > 0; o.air = h > .2;
+    const b = bounce(k, 1.4, 55), p = clamp(b.airP, 0, 1), a = p * p * (3 - 2 * p) * Math.PI * 2;   // turns while in the air
+    o.y -= b.h; o.turn = Math.abs(Math.cos(a)) * .9 + .1; o.sx = 2 - b.stretch; o.sy = b.stretch; o.face = Math.cos(a) > 0; o.air = b.air;
     o.arms = [[-60, 1.1], [-60, -1.1]]; o.legs = [6, 6];
   },
   // claps above the head with a little knee bounce
