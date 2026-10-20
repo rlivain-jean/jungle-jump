@@ -85,7 +85,7 @@ const MAXV = 9;                // metres per second at full effort
 const BASEV = 3.5;             // the runner always jogs at least this fast, running on the spot adds speed
 const GRAV = 9.8, JUMPV = 4.4; // a jump peaks just under 1 m
 const RUN_TIME = 45;           // seconds per turn
-const VERSION = '7';           // the phone reloads itself when it has an older version
+const VERSION = '8';           // the phone reloads itself when it has an older version
 const LOG_H = 0.45;
 
 const ANIMALS = {
@@ -177,7 +177,7 @@ const runner = () => roster[turnIdx] || roster[0];
 
 function resetRun() {
   Object.assign(me, { x: 0, logGrace: 0, dist: 0, speed: 0, h: 0, vh: 0, stumble: 0, jumpQ: 0, fruit: 0, shake: 0, splash: 0, time: 0 });
-  course = makeCourse((Math.random() * 1e9) | 0); popups = [];
+  course = makeCourse((Math.random() * 1e9) | 0); popups = []; fx = []; shownFruit = 0;
 }
 const points = s => Math.round(s.dist) + s.fruit * 10;
 function showOnly(id) { ['lobby', 'turn', 'results'].forEach(x => $(x).hidden = x !== id); }
@@ -308,7 +308,7 @@ function update(dt) {
   const before = me.dist;
   me.dist += me.speed * dt;
   for (const it of course) {
-    if (it.done || it.z > me.dist + .3 || it.z < before - 1) continue;
+    if (it.done || it.type === 'banana' || it.z > me.dist + .3 || it.z < before - 1) continue;
     if (it.type === 'log') {
       it.done = true;
       if (me.h >= LOG_H - .1 || me.vh > 0) popup('Great jump!', '#7ee08a');
@@ -320,10 +320,13 @@ function update(dt) {
     } else if (it.type === 'puddle' && it.z <= me.dist) {
       it.done = true;
       if (me.h < .15) { me.splash = 1.2; sfx.splash(); popup('Splash!', '#9fe0ff'); }
-    } else if (it.type === 'banana' && it.z <= me.dist) {
-      it.done = true;
-      if ((it.h < .8 || me.h > .3) && Math.abs(me.x - it.x) < 1) { me.fruit++; sfx.banana(); popup('+1 🍌', '#ffd23f'); }
     }
+  }
+  // bananas are caught just in front of the runner, so the catch is visible
+  for (const it of course) {
+    if (it.type !== 'banana' || it.done || it.z - me.dist > 1.6) continue;
+    it.done = true;
+    if ((it.h < .8 || me.h > .2 || me.vh > 0) && Math.abs(me.x - it.x) < 1) { me.fruit++; sfx.banana(); catchBanana(it); }
   }
 }
 function physics(dt, t) {
@@ -349,14 +352,51 @@ let camH = EYE, camX = 0, camZ = 0;
 function proj(x, y, wz) { const z = wz - camZ, s = FOCAL / z; return [W / 2 + (x - camX) * s, HORIZON + (camH - y) * s, s, z]; }
 const fogAlpha = z => clamp((FAR - z) / 18, 0, 1);
 
-function drawSky() {
-  const g = ctx.createLinearGradient(0, 0, 0, HORIZON + 40);
-  g.addColorStop(0, '#5fb6e8'); g.addColorStop(1, '#cdeedd');
-  ctx.fillStyle = g; ctx.fillRect(-200, -200, W + 400, HORIZON + 240);
-  ctx.fillStyle = '#5d9c6b'; ctx.beginPath(); ctx.moveTo(-200, HORIZON + 4);
-  for (let x = -200; x <= W + 200; x += 20) ctx.lineTo(x, HORIZON - 40 - Math.abs(Math.sin(x * .011)) * 50 - Math.sin(x * .031) * 14);
-  ctx.lineTo(W + 200, HORIZON + 4); ctx.fill();
-  ctx.fillStyle = '#3f8f45'; ctx.fillRect(-200, HORIZON, W + 400, H - HORIZON + 200);
+// colours fade toward the hazy sky with distance, which sells the depth
+const HAZE = [205, 238, 221];
+const rgbCache = {};
+function rgb(hex) { return rgbCache[hex] || (rgbCache[hex] = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16))); }
+function haze(hex, z, k = 0) {
+  const f = clamp((z - 6) / (FAR - 6), 0, 1) * .8, c = rgb(hex);
+  return `rgb(${c.map((v, i) => Math.round(clamp(v * (1 + k), 0, 255) * (1 - f) + HAZE[i] * f)).join(',')})`;
+}
+// a shaded ball, lit from the sun at the top left
+function ball(x, y, r, hex, z) {
+  if (r < 1) return;
+  const g = ctx.createRadialGradient(x - r * .35, y - r * .4, r * .1, x, y, r);
+  g.addColorStop(0, haze(hex, z, .35)); g.addColorStop(.55, haze(hex, z)); g.addColorStop(1, haze(hex, z, -.35));
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill();
+}
+// soft shadow on the ground under an object (w = width, d = depth in metres)
+function shadow(x, wz, w, d, a = .28) {
+  const [cx, yN] = proj(x, 0, wz - d / 2), [, yF, s] = proj(x, 0, wz + d / 2);
+  if (yN - yF < .5) return;
+  ctx.fillStyle = `rgba(20,50,25,${a})`; ctx.beginPath(); ctx.ellipse(cx, (yN + yF) / 2, w / 2 * s, (yN - yF) / 2 + 1, 0, 0, 7); ctx.fill();
+}
+
+const CLOUDS = [[-700, 90, 1.2], [-100, 150, .8], [500, 70, 1], [1100, 130, 1.3], [1700, 95, .9]];
+function drawSky(t) {
+  const g = ctx.createLinearGradient(0, -200, 0, HORIZON + 40);
+  g.addColorStop(0, '#3d9ee0'); g.addColorStop(.6, '#8fd0ef'); g.addColorStop(1, '#d6f1e2');
+  ctx.fillStyle = g; ctx.fillRect(-300, -300, W + 600, HORIZON + 340);
+  // sun with a warm glow
+  const sx = 330 - camX * 20, sy = 110, sg = ctx.createRadialGradient(sx, sy, 20, sx, sy, 260);
+  sg.addColorStop(0, 'rgba(255,250,210,1)'); sg.addColorStop(.25, 'rgba(255,240,170,.55)'); sg.addColorStop(1, 'rgba(255,240,170,0)');
+  ctx.fillStyle = sg; ctx.fillRect(sx - 260, sy - 260, 520, 520);
+  ctx.fillStyle = '#fffbe0'; ctx.beginPath(); ctx.arc(sx, sy, 56, 0, 7); ctx.fill();
+  // slow drifting clouds
+  CLOUDS.forEach(([cx, cy, sc]) => {
+    const x = ((cx + t * 12 - camX * 30) % (W + 900) + W + 900) % (W + 900) - 450;
+    ctx.fillStyle = 'rgba(255,255,255,.85)';
+    [[0, 0, 50], [45, -18, 42], [90, 0, 46], [45, 12, 50]].forEach(([dx, dy, r]) => { ctx.beginPath(); ctx.arc(x + dx * sc, cy + dy * sc, r * sc, 0, 7); ctx.fill(); });
+  });
+  // two layers of hills: the far one paler
+  [['#9cc9a4', 70, .3, .007], ['#6fae7c', 34, .6, .011]].forEach(([col, hgt, par, fr]) => {
+    ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(-300, HORIZON + 4);
+    for (let x = -300; x <= W + 300; x += 20) { const k = x + camX * 60 * par; ctx.lineTo(x, HORIZON - hgt - Math.abs(Math.sin(k * fr)) * hgt * .9 - Math.sin(k * fr * 2.7) * 12); }
+    ctx.lineTo(W + 300, HORIZON + 4); ctx.fill();
+  });
+  ctx.fillStyle = '#3f8f45'; ctx.fillRect(-300, HORIZON, W + 600, H - HORIZON + 300);
 }
 
 function drawGround() {
@@ -364,19 +404,25 @@ function drawGround() {
   for (let k = k0 + Math.ceil(FAR / seg); k >= k0; k--) {
     const z0 = Math.max(camZ + .4, k * seg), z1 = (k + 1) * seg;
     if (z1 <= camZ + .4) continue;
+    const zm = (z0 + z1) / 2 - camZ;
     const [lxN, yN] = proj(-PATH, 0, z0), [rxN] = proj(PATH, 0, z0), [lxF, yF] = proj(-PATH, 0, z1), [rxF] = proj(PATH, 0, z1);
     const even = k % 2 === 0;
-    ctx.fillStyle = even ? '#45994b' : '#3c8b43';
-    ctx.fillRect(-200, yF, W + 400, yN - yF + 1);
-    ctx.fillStyle = even ? '#a8743f' : '#9a6837';
+    ctx.fillStyle = haze(even ? '#45994b' : '#3c8b43', zm);
+    ctx.fillRect(-300, yF, W + 600, yN - yF + 1);
+    ctx.fillStyle = haze(even ? '#b07a43' : '#a06c3a', zm);
     quad(lxN, rxN, yN, lxF, rxF, yF);
-    ctx.fillStyle = '#7a5129';
-    const [elN] = proj(-PATH - .12, 0, z0), [elF] = proj(-PATH - .12, 0, z1), [erN] = proj(PATH + .12, 0, z0), [erF] = proj(PATH + .12, 0, z1);
+    ctx.fillStyle = haze('#6e4824', zm);
+    const [elN] = proj(-PATH - .14, 0, z0), [elF] = proj(-PATH - .14, 0, z1), [erN] = proj(PATH + .14, 0, z0), [erF] = proj(PATH + .14, 0, z1);
     quad(elN, lxN, yN, elF, lxF, yF); quad(rxN, erN, yN, rxF, erF, yF);
+    // a few pebbles on the path
+    if (zm < 30) for (let p = 0; p < 2; p++) {
+      const id = k * 3 + p, [px, py, s] = proj((hash(id) - .5) * 2.8, 0, k * seg + hash(id + 1) * seg);
+      if (py <= yN && py >= yF) { ctx.fillStyle = haze('#8a5a2b', zm); ctx.beginPath(); ctx.ellipse(px, py, .07 * s, .03 * s, 0, 0, 7); ctx.fill(); }
+    }
   }
-  const fg = ctx.createLinearGradient(0, HORIZON, 0, HORIZON + 70);
-  fg.addColorStop(0, 'rgba(205,238,221,.9)'); fg.addColorStop(1, 'rgba(205,238,221,0)');
-  ctx.fillStyle = fg; ctx.fillRect(-200, HORIZON, W + 400, 70);
+  const fg = ctx.createLinearGradient(0, HORIZON, 0, HORIZON + 80);
+  fg.addColorStop(0, 'rgba(214,241,226,.95)'); fg.addColorStop(1, 'rgba(214,241,226,0)');
+  ctx.fillStyle = fg; ctx.fillRect(-300, HORIZON, W + 600, 80);
 }
 function quad(x1, x2, yN, x3, x4, yF) { ctx.beginPath(); ctx.moveTo(x1, yN); ctx.lineTo(x2, yN); ctx.lineTo(x4, yF); ctx.lineTo(x3, yF); ctx.fill(); }
 
@@ -397,31 +443,43 @@ function scenery() {
 function drawTree(x, wz, id, sd) {
   const h = 4 + hash(id + 11) * 3, [tx, ty, s, z] = proj(x, 0, wz), [, topY] = proj(x, h, wz);
   ctx.globalAlpha = fogAlpha(z);
-  ctx.fillStyle = '#5b3a1e'; ctx.fillRect(tx - .18 * s, topY, .36 * s, ty - topY);
-  ctx.fillStyle = hash(id + 4) > .5 ? '#2f7d45' : '#3a8f50';
-  [[0, 0, 1.6], [-1.1, -.5, 1.1], [1.1, -.4, 1.2], [0, .9, 1.1]].forEach(([dx, dy, r]) => { const [cx, cy] = proj(x + dx, h + dy, wz); ctx.beginPath(); ctx.arc(cx, cy, r * s, 0, 7); ctx.fill(); });
-  if (hash(id + 5) > .5) { const [vx, vy] = proj(x - sd, h - .3, wz); ctx.strokeStyle = '#2b6b3b'; ctx.lineWidth = Math.max(1, .08 * s); ctx.beginPath(); ctx.moveTo(vx, vy); ctx.quadraticCurveTo(vx + .2 * s, vy + 1.2 * s, vx - .1 * s, vy + 2.2 * s); ctx.stroke(); }
+  shadow(x + .4, wz, 3, 1.6);
+  const tw = .2 * s, tg = ctx.createLinearGradient(tx - tw, 0, tx + tw, 0);
+  tg.addColorStop(0, haze('#7a5230', z)); tg.addColorStop(.5, haze('#5b3a1e', z)); tg.addColorStop(1, haze('#3a2412', z));
+  ctx.fillStyle = tg; ctx.fillRect(tx - tw, topY, tw * 2, ty - topY);
+  const leaf = hash(id + 4) > .5 ? '#2f7d45' : '#3a8f50';
+  [[-1.1, -.5, 1.1], [1.1, -.4, 1.2], [0, 0, 1.6], [-.5, .7, 1], [.5, .9, 1]].forEach(([dx, dy, r]) => { const [cx, cy] = proj(x + dx, h + dy, wz); ball(cx, cy, r * s, leaf, z); });
+  if (hash(id + 5) > .5) { const [vx, vy] = proj(x - sd, h - .3, wz); ctx.strokeStyle = haze('#2b6b3b', z); ctx.lineWidth = Math.max(1, .08 * s); ctx.beginPath(); ctx.moveTo(vx, vy); ctx.quadraticCurveTo(vx + .2 * s, vy + 1.2 * s, vx - .1 * s, vy + 2.2 * s); ctx.stroke(); }
   ctx.globalAlpha = 1;
 }
 
 function drawBush(x, wz, id) {
   const [bx, by, s, z] = proj(x, 0, wz);
   ctx.globalAlpha = fogAlpha(z);
-  ctx.fillStyle = hash(id + 2) > .5 ? '#2e7a3e' : '#3d9450';
-  [[-.4, .35, .5], [.3, .4, .55], [0, .7, .5]].forEach(([dx, dy, r]) => { ctx.beginPath(); ctx.arc(bx + dx * s, by - dy * s, r * s, 0, 7); ctx.fill(); });
-  if (hash(id + 9) > .6) { ctx.fillStyle = '#ff6b6b'; ctx.beginPath(); ctx.arc(bx + .1 * s, by - .8 * s, .09 * s, 0, 7); ctx.fill(); }
+  shadow(x, wz, 1.6, .9);
+  const leaf = hash(id + 2) > .5 ? '#2e7a3e' : '#3d9450';
+  [[-.4, .35, .5], [.3, .4, .55], [0, .7, .5]].forEach(([dx, dy, r]) => ball(bx + dx * s, by - dy * s, r * s, leaf, z));
+  if (hash(id + 9) > .6) ball(bx + .1 * s, by - .8 * s, .1 * s, '#ff6b6b', z);
   ctx.globalAlpha = 1;
 }
 
+// logs are drawn as round tree trunks lying across the path
 function drawLog(wz) {
-  const [lx, yb, s, z] = proj(-PATH - .1, 0, wz), [rx] = proj(PATH + .1, 0, wz), [, yt] = proj(0, LOG_H, wz);
-  const [lxB, ytB] = proj(-PATH - .1, LOG_H, wz + .4), [rxB] = proj(PATH + .1, LOG_H, wz + .4);
+  const R = LOG_H / 2, L = PATH + .15;
+  const [lx, yb, s, z] = proj(-L, 0, wz), [rx] = proj(L, 0, wz), [, yt] = proj(0, LOG_H, wz);
   ctx.globalAlpha = fogAlpha(z);
-  ctx.fillStyle = '#8f5a2a'; quad(lx, rx, yt, lxB, rxB, ytB);
-  ctx.fillStyle = '#7a4a22'; ctx.fillRect(lx, yt, rx - lx, yb - yt);
-  ctx.strokeStyle = '#5e3818'; ctx.lineWidth = Math.max(1, .03 * s);
-  for (let k = 1; k < 4; k++) { const yy = yt + (yb - yt) * k / 4; ctx.beginPath(); ctx.moveTo(lx + .1 * s, yy); ctx.lineTo(rx - .1 * s, yy); ctx.stroke(); }
-  ctx.fillStyle = '#d1a36d'; ctx.beginPath(); ctx.ellipse(lx, (yt + yb) / 2, .14 * s, (yb - yt) / 2, 0, 0, 7); ctx.ellipse(rx, (yt + yb) / 2, .14 * s, (yb - yt) / 2, 0, 0, 7); ctx.fill();
+  shadow(0, wz + .1, L * 2 + .4, .9, .32);
+  const g = ctx.createLinearGradient(0, yt, 0, yb);
+  g.addColorStop(0, haze('#b07a42', z)); g.addColorStop(.35, haze('#8a5527', z)); g.addColorStop(1, haze('#4a2a10', z));
+  ctx.fillStyle = g; ctx.beginPath(); ctx.roundRect ? ctx.roundRect(lx, yt, rx - lx, yb - yt, (yb - yt) / 2) : ctx.rect(lx, yt, rx - lx, yb - yt); ctx.fill();
+  // bark lines
+  ctx.strokeStyle = haze('#5e3818', z); ctx.lineWidth = Math.max(1, .025 * s);
+  for (let k = 1; k < 4; k++) { const yy = yt + (yb - yt) * k / 4; ctx.beginPath(); ctx.moveTo(lx + R * s, yy); ctx.lineTo(rx - R * s, yy + (k - 2) * .02 * s); ctx.stroke(); }
+  // cut ends with rings
+  [lx + R * s * .5, rx - R * s * .5].forEach(ex => {
+    ctx.fillStyle = haze('#e2b47c', z); ctx.beginPath(); ctx.ellipse(ex, (yt + yb) / 2, R * s * .55, (yb - yt) / 2, 0, 0, 7); ctx.fill();
+    ctx.strokeStyle = haze('#b0814c', z); [.6, .3].forEach(f => { ctx.beginPath(); ctx.ellipse(ex, (yt + yb) / 2, R * s * .55 * f, (yb - yt) / 2 * f, 0, 0, 7); ctx.stroke(); });
+  });
   ctx.globalAlpha = 1;
 }
 
@@ -429,29 +487,83 @@ function drawLog(wz) {
 function drawThicket(it) {
   const c = it.side * .85, [, , , z] = proj(c, 0, it.z);
   ctx.globalAlpha = fogAlpha(z);
-  [[-.75, .45, .55], [.75, .45, .55], [-.35, .75, .6], [.35, .8, .6], [0, 1.1, .5], [-.8, .9, .4], [.8, .9, .4]].forEach(([dx, dy, r], i) => {
-    const [x, y, s] = proj(c + dx, dy, it.z);
-    ctx.fillStyle = i % 2 ? '#2b7a3a' : '#35914a'; ctx.beginPath(); ctx.arc(x, y, r * s, 0, 7); ctx.fill();
+  shadow(c, it.z, 2.4, 1.4, .3);
+  [[-.75, .45, .55], [.75, .45, .55], [-.8, .9, .4], [.8, .9, .4], [-.35, .75, .6], [.35, .8, .6], [0, 1.1, .5]].forEach(([dx, dy, r], i) => {
+    const [x, y, s] = proj(c + dx, dy, it.z); ball(x, y, r * s, i % 2 ? '#2b7a3a' : '#35914a', z);
   });
-  [[-.5, .9], [.4, 1.2], [.1, .5], [-.2, 1.3]].forEach(([dx, dy]) => { const [x, y, s] = proj(c + dx, dy, it.z); ctx.fillStyle = '#ff7eb6'; ctx.beginPath(); ctx.arc(x, y, .09 * s, 0, 7); ctx.fill(); });
+  [[-.5, .9], [.4, 1.2], [.1, .5], [-.2, 1.3]].forEach(([dx, dy]) => { const [x, y, s] = proj(c + dx, dy, it.z); ball(x, y, .1 * s, '#ff7eb6', z); });
   ctx.globalAlpha = 1;
 }
 
 function drawPuddle(wz) {
   const [lx, yN, , z] = proj(-1.4, 0, wz - .2), [rx] = proj(1.4, 0, wz - .2), [, yF] = proj(0, 0, wz + 1.4);
-  ctx.globalAlpha = fogAlpha(z) * .9;
-  ctx.fillStyle = '#5aa9d6'; ctx.beginPath(); ctx.ellipse((lx + rx) / 2, (yN + yF) / 2, (rx - lx) / 2, Math.max(2, (yN - yF) / 2), 0, 0, 7); ctx.fill();
-  ctx.fillStyle = 'rgba(255,255,255,.5)'; ctx.beginPath(); ctx.ellipse((lx + rx) / 2 - (rx - lx) * .15, (yN + yF) / 2 - (yN - yF) * .1, (rx - lx) * .15, Math.max(1, (yN - yF) * .1), 0, 0, 7); ctx.fill();
+  const cx = (lx + rx) / 2, cy = (yN + yF) / 2, ry = Math.max(2, (yN - yF) / 2);
+  ctx.globalAlpha = fogAlpha(z) * .95;
+  const g = ctx.createLinearGradient(0, yF, 0, yN);
+  g.addColorStop(0, haze('#8fd3f5', z)); g.addColorStop(1, haze('#3f8fc0', z));
+  ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(cx, cy, (rx - lx) / 2, ry, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,.55)'; ctx.beginPath(); ctx.ellipse(cx - (rx - lx) * .15, cy - ry * .2, (rx - lx) * .15, Math.max(1, ry * .18), 0, 0, 7); ctx.fill();
   ctx.globalAlpha = 1;
 }
 
-function drawBanana(it, t) {
-  const [bx, by, s, z] = proj(it.x, it.h + Math.sin(t * 4 + it.z) * .05, it.z), r = .42 * s;
-  ctx.globalAlpha = fogAlpha(z);
-  ctx.save(); ctx.translate(bx, by); ctx.rotate(-.4 + Math.sin(t * 3 + it.z) * .2);
-  ctx.fillStyle = '#ffd23f'; ctx.strokeStyle = '#a3761a'; ctx.lineWidth = Math.max(1, r * .12);
+function bananaShape(r) {
+  const g = ctx.createLinearGradient(0, -r * 2.2, 0, 0);
+  g.addColorStop(0, '#fff07a'); g.addColorStop(.6, '#ffd23f'); g.addColorStop(1, '#e0a51c');
+  ctx.fillStyle = g; ctx.strokeStyle = '#9c6b12'; ctx.lineWidth = Math.max(1, r * .1);
   ctx.beginPath(); ctx.arc(0, -r * .7, r, .3, Math.PI - .3); ctx.arc(0, -r * 1.2, r * 1.2, Math.PI - .45, .45, true); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#5b3a1e'; ctx.beginPath(); ctx.arc(-r * 1.05, -r * .85, r * .1, 0, 7); ctx.arc(r * 1.05, -r * .85, r * .1, 0, 7); ctx.fill();
+}
+function drawBanana(it, t) {
+  const hov = it.h + Math.sin(t * 4 + it.z) * .05, [bx, by, s, z] = proj(it.x, hov, it.z), r = Math.min(.42 * s, 150);
+  ctx.globalAlpha = fogAlpha(z);
+  shadow(it.x, it.z, .7 - hov * .2, .35, .22);
+  ctx.save(); ctx.translate(bx, by); ctx.rotate(-.4 + Math.sin(t * 3 + it.z) * .2);
+  bananaShape(r);
   ctx.restore(); ctx.globalAlpha = 1;
+}
+
+// ---------- catch effects: star bursts and bananas flying to the counter ----------
+let fx = [], fruitPulse = 0, shownFruit = 0;
+const COUNTER = [W - 160, 80];
+function catchBanana(it) {
+  const [x, y, s] = proj(it.x, it.h, it.z), t = now();
+  for (let k = 0; k < 14; k++) {
+    const a = Math.random() * Math.PI * 2, v = 350 + Math.random() * 500;
+    fx.push({ kind: 'star', x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 250, t0: t, life: .7 + Math.random() * .4, size: 14 + Math.random() * 18, rot: Math.random() * 6, color: ['#ffd23f', '#ffffff', '#ffb02e', '#fff07a'][k % 4] });
+  }
+  fx.push({ kind: 'ring', x, y, t0: t, life: .45 });
+  fx.push({ kind: 'fly', x, y, r: clamp(.42 * s, 30, 120), t0: t, life: .75 });
+}
+function starPath(x, y, r, rot) {
+  ctx.beginPath();
+  for (let i = 0; i < 10; i++) { const a = rot + i * Math.PI / 5, rr = i % 2 ? r * .45 : r; ctx.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); }
+  ctx.closePath();
+}
+function drawFx(t) {
+  fx = fx.filter(f => t - f.t0 < f.life || (f.kind === 'fly' && !f.landed));
+  for (const f of fx) {
+    const k = clamp((t - f.t0) / f.life, 0, 1), dt = t - f.t0;
+    if (f.kind === 'star') {
+      ctx.globalAlpha = 1 - k; ctx.fillStyle = f.color;
+      starPath(f.x + f.vx * dt, f.y + f.vy * dt + 700 * dt * dt, f.size * (1 - k * .5), f.rot + dt * 6); ctx.fill();
+    } else if (f.kind === 'ring') {
+      ctx.globalAlpha = 1 - k; ctx.strokeStyle = '#fff6c2'; ctx.lineWidth = 10 * (1 - k) + 2;
+      ctx.beginPath(); ctx.arc(f.x, f.y, 30 + k * 160, 0, 7); ctx.stroke();
+    } else if (f.kind === 'fly') {
+      // swoop up in an arc to the banana counter, shrinking on the way
+      const e = k * k * (3 - 2 * k), x = f.x + (COUNTER[0] - f.x) * e, y = f.y + (COUNTER[1] - f.y) * e - Math.sin(e * Math.PI) * 220;
+      ctx.globalAlpha = 1; ctx.save(); ctx.translate(x, y); ctx.rotate(e * 6); bananaShape(f.r * (1 - e * .65)); ctx.restore();
+      if (k >= 1 && !f.landed) { f.landed = true; shownFruit++; fruitPulse = t; }
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+
+// darker corners focus the eye on the path
+function vignette() {
+  const g = ctx.createRadialGradient(W / 2, H * .55, H * .45, W / 2, H * .55, H * 1.05);
+  g.addColorStop(0, 'rgba(10,30,20,0)'); g.addColorStop(1, 'rgba(10,30,20,.45)');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
 }
 
 // ---------- the runner, seen from behind ----------
@@ -520,7 +632,10 @@ function drawHud(t) {
   const label = `${ANIMALS[p.animal].emoji} ${p.name} · ${Math.round(me.dist)} m`;
   const lw = Math.max(380, ctx.measureText(label).width + 70);
   pill(30, 36, lw, 84); ctx.textAlign = 'left'; ctx.fillStyle = '#fff8e7'; ctx.fillText(label, 62, 80);
-  pill(W - 300, 36, 270, 84); ctx.textAlign = 'right'; ctx.fillText(`🍌 ${me.fruit}`, W - 60, 80);
+  const pulse = 1 + .35 * Math.max(0, 1 - (t - fruitPulse) / .3);
+  ctx.save(); ctx.translate(COUNTER[0], COUNTER[1]); ctx.scale(pulse, pulse);
+  pill(-140, -44, 270, 84); ctx.textAlign = 'center'; ctx.fillStyle = '#fff8e7'; ctx.fillText(`🍌 ${shownFruit}`, -5, 0);
+  ctx.restore();
   // effort meter: how hard the runner is running on the spot
   const mh = 340, mx = 70, my = 200;
   pill(mx - 26, my, 52, mh);
@@ -551,7 +666,9 @@ function draw(t) {
   camH = EYE + me.h + Math.abs(Math.sin(me.dist * 2.2)) * .05 * (me.speed / MAXV);
   camX = me.x + (me.shake > 0 ? Math.sin(t * 60) * .08 * me.shake : 0);
 
-  drawSky(); drawGround();
+  ctx.save();
+  ctx.translate(W / 2, H / 2); ctx.rotate(-me.x * .045); ctx.translate(-W / 2, -H / 2);
+  drawSky(t); drawGround();
   const objs = scenery();
   for (const it of course) {
     if (it.done && it.type === 'banana') continue;
@@ -561,11 +678,14 @@ function draw(t) {
     objs.push({ z: it.type === 'puddle' ? z + 100 : z, draw: fn });
   }
   objs.sort((a, b) => b.z - a.z).forEach(o => o.draw());
+  ctx.restore();
+  vignette();
 
   if (me.splash > 0) { ctx.fillStyle = `rgba(90,169,214,${me.splash * .25})`; ctx.fillRect(0, 0, W, H); }
   if (me.shake > 0) { ctx.fillStyle = `rgba(255,90,90,${me.shake * .35})`; ctx.fillRect(0, 0, W, H); }
   if (phase === 'run' || phase === 'countdown' || phase === 'end' || phase === 'between') drawHud(t);
   if (phase !== 'lobby' && phase !== 'results') drawRunner(t);
+  drawFx(t);
 
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   popups.forEach((p, i) => { const k = (now() - p.t) / 1.2; ctx.globalAlpha = 1 - k; ctx.font = '800 90px "Baloo 2", sans-serif'; outlined(p.text, W / 2, H * .3 - k * 80 - i * 10, p.color); ctx.globalAlpha = 1; });
