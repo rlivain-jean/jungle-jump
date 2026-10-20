@@ -131,7 +131,7 @@
 
 <script src="vendor/peerjs.min.js"></script>
 <script>
-const VERSION = '8';
+const VERSION = '9';
 const $ = id => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const ANIMALS = { monkey: '🐒', koala: '🐨', bear: '🐻', lion: '🦁' };
@@ -210,7 +210,7 @@ function onTv(d) {
   if (d.t === 'bump' && navigator.vibrate) navigator.vibrate(120);
   if (d.t === 'done') {
     const medals = ['🥇', '🥈', '🥉', '🏅'];
-    $('rank').innerHTML = (d.ranking || []).map((r, i) => `<div><span>${medals[i]} ${ANIMALS[r.animal] || ''} ${esc(r.name)}</span><b>${r.pts}</b></div>`).join('');
+    $('rank').innerHTML = (d.ranking || []).map((r, i) => `<div><span>${medals[i]} ${ANIMALS[r.animal] || ''} ${esc(r.name)}</span><b>🍌 ${r.pts}</b></div>`).join('');
     show('done');
   }
 }
