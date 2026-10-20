@@ -63,6 +63,16 @@
   .hold button[aria-pressed="true"] { border-color: var(--banana); background: rgba(255,210,63,.2); }
   .runword { font-size: 30px; font-weight: 800; color: var(--cream); }
   .runword.on { color: var(--green); }
+  .note { text-align: center; opacity: .7; margin-top: -8px; }
+  .picker { display: grid; grid-template-columns: 1fr 1.2fr 1fr; gap: 10px; align-items: center; }
+  .picker button { font: inherit; font-size: 44px; border: 0; border-radius: 22px; height: 96px; background: var(--green); color: var(--leaf-deep); touch-action: manipulation; }
+  .picker button:active { filter: brightness(.85); }
+  #curA { font-size: 76px; text-align: center; line-height: 1; }
+  .name { font: inherit; font-size: 24px; padding: 12px 16px; border-radius: 16px; border: 0; text-align: center; }
+  .plist { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+  .plist div { display: flex; align-items: center; gap: 6px; background: rgba(255,255,255,.1); border: 3px solid transparent; border-radius: 99px; padding: 4px 6px 4px 14px; font-size: 18px; font-weight: 700; }
+  .plist div.sel { border-color: var(--banana); background: rgba(255,210,63,.2); }
+  .plist button { font: inherit; border: 0; background: none; color: var(--cream); font-size: 18px; padding: 2px 6px; }
   [hidden] { display: none !important; }
 </style>
 </head>
@@ -85,8 +95,16 @@
 
   <!-- who's playing -->
   <section id="setup" hidden>
-    <h2>Who's playing?</h2>
-    <div id="players" style="display:flex;flex-direction:column;gap:12px"></div>
+    <h2 id="pickTitle">Player 1: pick your animal!</h2>
+    <p class="note">Look at the TV!</p>
+    <div class="picker">
+      <button type="button" id="prevA" aria-label="Previous animal">◀</button>
+      <div id="curA">🐨</div>
+      <button type="button" id="nextA" aria-label="Next animal">▶</button>
+    </div>
+    <input id="nameIn" class="name" placeholder="Name" maxlength="12" autocomplete="off" aria-label="Name">
+    <button class="btn" id="okBtn" type="button">✓ That's me!</button>
+    <div class="plist" id="players"></div>
     <button class="btn ghost" id="addBtn" type="button">+ Add player</button>
     <h2>How will they hold the phone?</h2>
     <div class="hold" id="hold">
@@ -131,7 +149,7 @@
 
 <script src="vendor/peerjs.min.js"></script>
 <script>
-const VERSION = '13';
+const VERSION = '14';
 const $ = id => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const ANIMALS = { monkey: '🐒', koala: '🐨', bear: '🐻', lion: '🦁' };
@@ -144,27 +162,36 @@ function load(k, d) { try { const v = JSON.parse(localStorage.getItem(k)); retur
 
 // ---------- players ----------
 let roster = load('jj-roster', [{ name: '', animal: 'monkey' }, { name: '', animal: 'koala' }]);
+roster = roster.map(p => ({ name: p.name || '', animal: ANIMALS[p.animal] ? p.animal : 'monkey' }));
+let sel = 0;   // which player is picking right now
+const KINDS = Object.keys(ANIMALS);
 function renderPlayers() {
-  $('players').innerHTML = roster.map((p, i) => `
-    <div class="player">
-      <div class="top"><input data-i="${i}" placeholder="Player ${i + 1}" value="${esc(p.name)}" maxlength="14" aria-label="Name of player ${i + 1}">
-      ${roster.length > 1 ? `<button class="rm" data-rm="${i}" type="button" aria-label="Remove player">✕</button>` : ''}</div>
-      <div class="animals">${Object.entries(ANIMALS).map(([k, e]) => `<button type="button" data-i="${i}" data-a="${k}" aria-pressed="${p.animal === k}">${e}</button>`).join('')}</div>
-    </div>`).join('');
+  sel = clamp(sel, 0, roster.length - 1);
+  const p = roster[sel];
+  $('pickTitle').textContent = `${p.name.trim() || `Player ${sel + 1}`}: pick your animal!`;
+  $('curA').textContent = ANIMALS[p.animal];
+  if (document.activeElement !== $('nameIn')) $('nameIn').value = p.name;
+  $('nameIn').placeholder = `Player ${sel + 1}`;
+  $('players').innerHTML = roster.map((r, i) => `<div class="${i === sel ? 'sel' : ''}" data-i="${i}">${ANIMALS[r.animal]} ${esc(r.name.trim() || `Player ${i + 1}`)}${roster.length > 1 ? `<button type="button" data-rm="${i}" aria-label="Remove player">✕</button>` : ''}</div>`).join('');
   $('addBtn').hidden = roster.length >= 4;
 }
 function cleanRoster() { return roster.map((p, i) => ({ name: p.name.trim() || `Player ${i + 1}`, animal: p.animal })); }
-function syncRoster() { store('jj-roster', roster); send({ t: 'roster', players: cleanRoster() }); }
-$('players').addEventListener('input', e => { if (e.target.dataset.i) { roster[+e.target.dataset.i].name = e.target.value; syncRoster(); } });
+function syncRoster() { store('jj-roster', roster); send({ t: 'roster', players: cleanRoster(), sel }); }
+function changed() { renderPlayers(); syncRoster(); }
+$('prevA').onclick = () => { const p = roster[sel]; p.animal = KINDS[(KINDS.indexOf(p.animal) + KINDS.length - 1) % KINDS.length]; changed(); };
+$('nextA').onclick = () => { const p = roster[sel]; p.animal = KINDS[(KINDS.indexOf(p.animal) + 1) % KINDS.length]; changed(); };
+$('nameIn').addEventListener('input', () => { roster[sel].name = $('nameIn').value; changed(); });
+$('okBtn').onclick = () => { $('nameIn').blur(); send({ t: 'pick' }); if (sel < roster.length - 1) sel++; renderPlayers(); };
 $('players').addEventListener('click', e => {
-  const b = e.target.closest('button'); if (!b) return;
-  if (b.dataset.rm) roster.splice(+b.dataset.rm, 1);
-  else if (b.dataset.a) roster[+b.dataset.i].animal = b.dataset.a;
-  renderPlayers(); syncRoster();
+  const rm = e.target.closest('[data-rm]'), chip = e.target.closest('[data-i]');
+  if (rm) { roster.splice(+rm.dataset.rm, 1); if (sel >= roster.length) sel = roster.length - 1; }
+  else if (chip) sel = +chip.dataset.i;
+  else return;
+  changed();
 });
 $('addBtn').onclick = () => {
-  const used = roster.map(p => p.animal), free = Object.keys(ANIMALS).find(a => !used.includes(a)) || 'monkey';
-  roster.push({ name: '', animal: free }); renderPlayers(); syncRoster();
+  const free = KINDS.find(a => !roster.some(p => p.animal === a)) || 'monkey';
+  roster.push({ name: '', animal: free }); sel = roster.length - 1; changed();
 };
 
 // ---------- connection ----------
@@ -182,7 +209,7 @@ function connect() {
 }
 function openConn() {
   conn = peer.connect('jungle-jump-' + room, { serialization: 'json' });
-  conn.on('open', () => setNet('Connected', true));
+  conn.on('open', () => { setNet('Connected', true); syncRoster(); });
   conn.on('data', onTv);
   conn.on('close', () => { setNet('Reconnecting…'); retry = setTimeout(connect, 1500); });
 }
@@ -195,8 +222,10 @@ function onTv(d) {
     sessionStorage.setItem('jj-reloaded-' + d.v, '1');
     location.replace(`controller.html?room=${room}&v=${d.v}&t=${Date.now()}`); return;
   }
-  if (d.t === 'roster' && Array.isArray(d.players) && !load('jj-roster', null)) {
-    roster = d.players.map(p => ({ name: p.name, animal: p.animal })); renderPlayers();
+  if (d.t === 'roster' && Array.isArray(d.players) && (d.edit || !load('jj-roster', null))) {
+    roster = d.players.map(p => ({ name: /^Player \d$/.test(p.name) ? '' : p.name, animal: ANIMALS[p.animal] ? p.animal : 'monkey' }));
+    if (d.sel != null) sel = d.sel;
+    store('jj-roster', roster); renderPlayers();
   }
   if (d.t === 'roster' && d.phase === 'lobby' && $('play').hidden && $('done').hidden) show('setup');
   if (d.t === 'turn') {
@@ -301,7 +330,7 @@ function renderHold() {
 }
 document.querySelectorAll('#hold button').forEach(b => b.onclick = () => { pocket = b.dataset.p === '1'; store('jj-pocket', pocket); renderHold(); });
 renderHold();
-$('changeBtn').onclick = $('toSetup').onclick = () => { send({ t: 'lobby' }); renderPlayers(); show('setup'); };
+$('changeBtn').onclick = $('toSetup').onclick = () => { send({ t: 'lobby' }); sel = 0; renderPlayers(); syncRoster(); show('setup'); };
 
 document.querySelectorAll('#sens button').forEach(b => b.onclick = () => {
   sens = +b.dataset.s;

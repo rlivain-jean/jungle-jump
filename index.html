@@ -26,9 +26,17 @@
   .card .qr svg { width: 26vh; height: 26vh; display: block; }
   .status { font-size: 2.6vh; font-weight: 700; padding: .3vh 1.6vh; border-radius: 99px; background: #e9e1cc; }
   .status.on { background: var(--green); color: #fff; }
-  .roster { display: flex; flex-direction: column; gap: 1.2vh; min-width: 40vh; text-align: left; }
-  .roster h3 { margin: 0; font-size: 3vh; opacity: .8; }
-  .roster div { font-size: 3.6vh; font-weight: 700; background: rgba(255,255,255,.1); border-radius: 99px; padding: .6vh 2.4vh; }
+  #lobby { justify-content: flex-start; padding-top: 3vh; gap: 1.2vh; background: linear-gradient(rgba(15,42,29,.85), rgba(15,42,29,.35) 32%, rgba(15,42,29,.2) 60%, rgba(15,42,29,.75)); }
+  #lobby h1 { font-size: 8vh; }
+  .pick { margin: 0; font-size: 4.4vh; font-weight: 800; }
+  .chips { display: flex; gap: 1.4vw; flex-wrap: wrap; justify-content: center; }
+  .chips div { font-size: 3vh; font-weight: 700; background: rgba(255,255,255,.12); border: .4vh solid transparent; border-radius: 99px; padding: .3vh 2vh; }
+  .chips div.sel { border-color: var(--banana); background: rgba(255,210,63,.22); }
+  #lobby .hint { position: absolute; bottom: 3vh; left: 3vw; text-align: left; font-size: 2.4vh; max-width: 55vw; }
+  .qrbox { position: absolute; right: 2vw; bottom: 2vh; display: flex; gap: 1.4vh; align-items: center; background: rgba(15,42,29,.75); border-radius: 2.4vh; padding: 1.4vh; }
+  .qrbox .qr { background: #fff; border-radius: 1.2vh; padding: .6vh; }
+  .qrbox .qr svg { width: 15vh; height: 15vh; display: block; }
+  .qrtext { display: flex; flex-direction: column; gap: .8vh; align-items: flex-start; text-align: left; }
   button.sound { font: inherit; font-weight: 700; font-size: 2.2vh; border: 0; border-radius: 99px; padding: .6vh 2vh; background: rgba(255,255,255,.15); color: var(--cream); cursor: pointer; }
   .hint { font-size: 2.8vh; margin: 0; }
   .hint kbd { font-family: inherit; background: rgba(255,255,255,.15); border-radius: .6vh; padding: 0 .8vh; }
@@ -52,14 +60,15 @@
 
 <div id="lobby" class="overlay">
   <h1>Jungle Jump</h1>
-  <p class="sub">Your animal runs by itself. Run on the spot to make it go faster! Jump over the logs, lean to dodge the bushes, and grab the bananas.</p>
-  <div class="row">
-    <div class="card"><div class="qr" id="qr"></div><span class="status" id="phoneSt">Scan with the iPhone</span></div>
-    <div class="roster"><h3>Who's playing?</h3><div id="rosterList"></div></div>
+  <p class="pick" id="pickHint">Player 1, pick your animal!</p>
+  <div class="chips" id="rosterList"></div>
+  <p class="hint" id="lobbyHint"></p>
+  <div class="qrbox">
+    <div class="qr" id="qr"></div>
+    <div class="qrtext"><span class="status" id="phoneSt">Scan with the iPhone</span>
+      <p class="room" id="roomLine">Connecting…</p>
+      <button class="sound" id="soundBtn" type="button">🔊 Turn sound on</button></div>
   </div>
-  <p class="hint" id="lobbyHint">Add players on the iPhone, then tap Start</p>
-  <button class="sound" id="soundBtn" type="button">🔊 Turn sound on</button>
-  <p class="room" id="roomLine">Connecting…</p>
 </div>
 
 <div id="turn" class="overlay" hidden>
@@ -90,7 +99,7 @@ const MAXV = 9;                // metres per second at full effort
 const BASEV = 3.5;             // the runner always jogs at least this fast, running on the spot adds speed
 const GRAV = 9.8, JUMPV = 4.4; // a jump peaks just under 1 m
 const RUN_TIME = 45;           // seconds per turn
-const VERSION = '13';           // the phone reloads itself when it has an older version
+const VERSION = '14';           // the phone reloads itself when it has an older version
 const LOG_H = 0.45;
 
 const ANIMALS = {
@@ -150,9 +159,14 @@ function setRoster(list) {
   try { localStorage.setItem('jj-roster', JSON.stringify(roster)); } catch (e) {}
   renderRoster();
 }
+let lobbySel = 0;   // which player is picking an animal right now
 function renderRoster() {
-  $('rosterList').innerHTML = roster.map(p => `<div>${ANIMALS[p.animal].emoji} ${esc(p.name)}</div>`).join('');
+  lobbySel = clamp(lobbySel, 0, roster.length - 1);
+  $('rosterList').innerHTML = roster.map((p, i) => `<div class="${i === lobbySel ? 'sel' : ''}">${ANIMALS[p.animal].emoji} ${esc(p.name)}</div>`).join('');
+  $('pickHint').textContent = `${roster[lobbySel].name}, pick your animal!`;
 }
+// changes made on the TV (keyboard) are sent to the phone so both stay in step
+function rosterEdited() { setRoster(roster); sendPhone({ t: 'roster', players: roster, sel: lobbySel, edit: true }); }
 
 // ---------- course ----------
 // Logs must be jumped, bushes dodged by leaning, puddles slow you down,
@@ -217,11 +231,11 @@ function showResults() {
   showOnly('results'); sfx.win(); startParty();
   sendPhone({ t: 'done', ranking: rows.map(r => ({ name: r.p.name, animal: r.p.animal, pts: r.pts })) });
 }
-function backToLobby() { phase = 'lobby'; showOnly('lobby'); resetRun(); }
+function backToLobby() { phase = 'lobby'; lobbySel = 0; renderRoster(); showOnly('lobby'); resetRun(); }
 
 // one action for everything: a real jump, the phone's jump button, Space or Enter
 function action() {
-  if (phase === 'lobby') newGame();
+  if (phase === 'lobby') pickConfirm();
   else if (phase === 'turn' && now() - phaseT > .8) startCountdown();
   else if (phase === 'run') me.jumpQ = now() + .35;
   else if (phase === 'results' && now() - phaseT > 2) newGame();
@@ -231,16 +245,33 @@ function action() {
 const keys = {};
 addEventListener('keydown', e => {
   unlockAudio();
+  if (phase === 'lobby') { if (!e.repeat) lobbyKey(e); keys[e.code] = true; return; }
   if (keys[e.code]) return; keys[e.code] = true;
   if (['Space', 'Enter'].includes(e.code)) { e.preventDefault(); action(); }
-  if (phase === 'lobby' && /^Digit[1-4]$/.test(e.code)) {
-    const n = +e.code.slice(5), kinds = Object.keys(ANIMALS);
-    setRoster(Array.from({ length: n }, (_, i) => roster[i] || { name: `Player ${i + 1}`, animal: kinds[i] }));
-    sendPhone({ t: 'roster', players: roster });
-  }
   if (e.code === 'Escape') backToLobby();
 });
 addEventListener('keyup', e => { keys[e.code] = false; });
+
+// character select on the computer: ◀ ▶ choose, type a name, Space = next player,
+// + = add a player, Enter = start
+const KINDS = Object.keys(ANIMALS);
+function lobbyKey(e) {
+  const p = roster[lobbySel];
+  if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') { p.animal = KINDS[(KINDS.indexOf(p.animal) + (e.code === 'ArrowRight' ? 1 : KINDS.length - 1)) % KINDS.length]; sfx.tick(); rosterEdited(); }
+  else if (e.code === 'Space' || e.code === 'ArrowDown') { e.preventDefault(); pickConfirm(); }
+  else if (e.code === 'ArrowUp') { lobbySel = Math.max(0, lobbySel - 1); rosterEdited(); }
+  else if (e.code === 'Enter') { e.preventDefault(); newGame(); }
+  else if ((e.key === '+' || e.code === 'NumpadAdd') && roster.length < 4) { roster.push({ name: `Player ${roster.length + 1}`, animal: KINDS.find(k => !roster.some(r => r.animal === k)) || 'monkey' }); lobbySel = roster.length - 1; rosterEdited(); }
+  else if (e.code === 'Backspace') { p.name = p.name.slice(0, -1); rosterEdited(); }
+  else if (e.code === 'Delete' && roster.length > 1) { roster.splice(lobbySel, 1); rosterEdited(); }
+  else if (e.key.length === 1 && /[\p{L} ]/u.test(e.key) && p.name.length < 12) { if (/^Player \d$/.test(p.name)) p.name = ''; p.name += e.key; rosterEdited(); }
+}
+function pickConfirm(fromPhone) {
+  sfx.banana(); pickedAt = now();
+  if (lobbySel < roster.length - 1) lobbySel++;
+  if (fromPhone) renderRoster(); else rosterEdited();   // the phone already moved on by itself
+}
+let pickedAt = 0;
 
 // ---------- networking: the phone connects through PeerJS ----------
 let peer, room, phone = null;
@@ -251,8 +282,9 @@ function controllerUrl() { const u = new URL('controller.html', location.href); 
 function sendPhone(m) { if (phone && phone.open) { try { phone.send(m); } catch (e) {} } }
 function updatePhoneStatus() {
   $('phoneSt').className = 'status' + (phone ? ' on' : '');
+  $('qr').hidden = !!phone;
   $('phoneSt').textContent = phone ? 'iPhone connected ✓' : 'Scan with the iPhone';
-  $('lobbyHint').innerHTML = phone ? 'Add players on the iPhone, then tap Start' : 'Scan the code with the iPhone · or press <kbd>1</kbd>–<kbd>4</kbd> and <kbd>Enter</kbd>';
+  $('lobbyHint').innerHTML = phone ? 'Pick with ◀ ▶ on the iPhone, tap ✓ when happy, then Start!' : 'Scan the code with the iPhone · or on the computer: <kbd>◀</kbd> <kbd>▶</kbd> choose, type a name, <kbd>Space</kbd> next player, <kbd>+</kbd> add player, <kbd>Enter</kbd> start';
 }
 function connectPeer() {
   const q = qrcode(0, 'M'); q.addData(controllerUrl()); q.make();
@@ -271,7 +303,8 @@ function connectPeer() {
       if (!d || typeof d !== 'object') return;
       if (d.t === 'r') { me.run = clamp(+d.v || 0, 0, 1); me.lean = clamp(+d.l || 0, -1, 1); me.lastInput = now(); }
       else if (d.t === 'j') action();
-      else if (d.t === 'roster') setRoster(d.players);
+      else if (d.t === 'roster') { if (d.sel != null) lobbySel = d.sel; setRoster(d.players); }
+      else if (d.t === 'pick') { if (phase === 'lobby') pickConfirm(true); }
       else if (d.t === 'start') { if (d.players) setRoster(d.players); pocketMode = !!d.pocket; newGame(); }
       else if (d.t === 'lobby') backToLobby();
     });
@@ -749,6 +782,36 @@ function drawRunner(t) {
   }
 }
 
+// ---------- character select: all four animals on stage, the chosen one dances ----------
+function drawLobby(t) {
+  const p = roster[lobbySel], gap = 380, x0 = W / 2 - gap * 1.5, gy = H * .74;
+  KINDS.forEach((kind, i) => {
+    const x = x0 + i * gap, chosen = kind === p.animal;
+    if (chosen) {
+      // spotlight and a little happy hop
+      const sg = ctx.createRadialGradient(x, gy, 10, x, gy, 230);
+      sg.addColorStop(0, 'rgba(255,240,170,.75)'); sg.addColorStop(1, 'rgba(255,240,170,0)');
+      ctx.fillStyle = sg; ctx.beginPath(); ctx.ellipse(x, gy, 230, 70, 0, 0, 7); ctx.fill();
+    }
+    const o = { kind, t, x, y: gy, u: chosen ? 2.1 : 1.45, face: true, legs: [0, 0], arms: [[-40, .3], [-40, -.3]] };
+    contactShadow(x, gy + 4, 46 * o.u, .9);
+    if (chosen) { DANCES[t - pickedAt < 1 ? 'spin' : 'hop'](t, o); }
+    else { o.y -= Math.abs(Math.sin(t * 2 + i)) * 6; o.headRot = Math.sin(t * 1.5 + i) * .08; o.alpha = .85; }
+    drawCritter(o);
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = `800 ${chosen ? 50 : 40}px "Baloo 2", sans-serif`; outlined(ANIMALS[kind].label, x, gy + 55, chosen ? '#ffd23f' : '#fff8e7');
+    // small name tags for other players who picked this animal
+    const others = roster.filter((r, j) => j !== lobbySel && r.animal === kind).map(r => r.name).join(' · ');
+    if (others) { ctx.font = '700 30px "Baloo 2", sans-serif'; outlined(others, x, gy + 100, '#cde8a8'); }
+    if (chosen) {
+      ctx.font = '800 64px "Baloo 2", sans-serif'; outlined(p.name, x, gy - 440 + Math.sin(t * 3) * 6, '#fff8e7');
+      const bounce = Math.sin(t * 5) * 8;
+      ctx.font = '800 90px "Baloo 2", sans-serif'; outlined('◀', x - 200 - bounce, gy - 110, '#ffd23f'); outlined('▶', x + 200 + bounce, gy - 110, '#ffd23f');
+    }
+  });
+  ctx.textBaseline = 'alphabetic';
+}
+
 // ---------- the happy-dance finale: every animal dances, each with a random dance ----------
 // o is filled in by the dance for time k (seconds since the dance started)
 const DANCES = {
@@ -879,6 +942,7 @@ function draw(t) {
   if (me.shake > 0) { ctx.fillStyle = `rgba(255,90,90,${me.shake * .35})`; ctx.fillRect(0, 0, W, H); }
   if (phase === 'run' || phase === 'countdown' || phase === 'end' || phase === 'between') drawHud(t);
   if (phase !== 'lobby' && phase !== 'results') drawRunner(t);
+  if (phase === 'lobby') drawLobby(t);
   if (phase === 'results') { ctx.fillStyle = 'rgba(15,42,29,.35)'; ctx.fillRect(0, 0, W, H); drawParty(t); }
   drawFx(t);
 
