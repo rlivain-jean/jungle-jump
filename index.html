@@ -48,7 +48,7 @@
 
 <div id="lobby" class="overlay">
   <h1>Jungle Jump</h1>
-  <p class="sub">Run on the spot to run. Jump over the logs. Lean left or right to dodge the bushes. Grab the bananas!</p>
+  <p class="sub">Your animal runs by itself. Run on the spot to make it go faster! Jump over the logs, lean to dodge the bushes, and grab the bananas.</p>
   <div class="row">
     <div class="card"><div class="qr" id="qr"></div><span class="status" id="phoneSt">Scan with the iPhone</span></div>
     <div class="roster"><h3>Who's playing?</h3><div id="rosterList"></div></div>
@@ -82,9 +82,10 @@ const LANE = 1.1;              // how far a full lean moves you sideways
 const PATH = 1.7;              // half width of the path in metres
 const FAR = 70;                // view distance in metres
 const MAXV = 9;                // metres per second at full effort
+const BASEV = 3.5;             // the runner always jogs at least this fast, running on the spot adds speed
 const GRAV = 9.8, JUMPV = 4.4; // a jump peaks just under 1 m
 const RUN_TIME = 45;           // seconds per turn
-const VERSION = '5';           // the phone reloads itself when it has an older version
+const VERSION = '6';           // the phone reloads itself when it has an older version
 const LOG_H = 0.45;
 
 const ANIMALS = {
@@ -298,7 +299,8 @@ function update(dt) {
   me.shake = Math.max(0, me.shake - dt);
   me.splash = Math.max(0, me.splash - dt);
 
-  const target = me.stumble > 0 ? 0 : me.run * MAXV * (me.splash > 0 ? .35 : 1);
+  const target = me.stumble > 0 ? 0 : (BASEV + me.run * (MAXV - BASEV)) * (me.splash > 0 ? .35 : 1);
+  me.lazy = me.run < .25 ? (me.lazy || 0) + dt : 0;   // how long the child hasn't been running
   me.speed += (target - me.speed) * Math.min(1, dt * (target > me.speed ? 2.2 : 4));
   physics(dt, t);
   if (me.logGrace && t > me.logGrace) { me.logGrace = 0; bump(); }
@@ -524,10 +526,15 @@ function drawHud(t) {
   pill(mx - 26, my, 52, mh);
   const lv = clamp(me.run, 0, 1); ctx.fillStyle = lv > .7 ? '#ffd23f' : '#7ee08a';
   ctx.fillRect(mx - 16, my + 10 + (mh - 20) * (1 - lv), 32, (mh - 20) * lv);
-  ctx.font = '700 28px "Baloo 2", sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = '#fff8e7'; ctx.fillText('RUN', mx, my + mh + 30);
+  ctx.font = '700 28px "Baloo 2", sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = '#fff8e7'; ctx.fillText('🏃 SPEED', mx + 20, my + mh + 30);
   // big prompt for the next thing to do
   const next = course.find(it => (it.type === 'log' || it.type === 'bush') && !it.done && it.z > me.dist);
-  if (phase === 'run' && next && (next.z - me.dist) / Math.max(me.speed, 1.5) < 1.6) {
+  const soon = next && (next.z - me.dist) / Math.max(me.speed, 1.5) < 1.6;
+  if (phase === 'run' && !soon && me.lazy > 1.5) {
+    ctx.font = '800 100px "Baloo 2", sans-serif'; ctx.textAlign = 'center';
+    ctx.globalAlpha = .7 + .3 * Math.sin(t * 8); outlined('🏃 Run faster!', W / 2, H * .28, '#7ee08a'); ctx.globalAlpha = 1;
+  }
+  if (phase === 'run' && soon) {
     ctx.font = '800 120px "Baloo 2", sans-serif'; ctx.textAlign = 'center';
     ctx.globalAlpha = .65 + .35 * Math.sin(t * 16);
     if (next.type === 'log') { if (me.h === 0) outlined('⬆ JUMP!', W / 2, H * .28, '#ffd23f'); }
