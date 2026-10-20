@@ -17,7 +17,7 @@
   html, body { margin: 0; height: 100%; background: var(--leaf-deep); overflow: hidden; font-family: var(--font); color: var(--cream); }
   canvas { display: block; position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 100vw; height: 56.25vw; }
   .overlay { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2.4vh; background: radial-gradient(ellipse at center, rgba(15,42,29,.74), rgba(15,42,29,.94)); text-align: center; }
-  .overlay[hidden] { display: none; }
+  .overlay[hidden], [hidden] { display: none !important; }
   h1 { margin: 0; font-size: 10vh; line-height: 1; font-weight: 800; color: var(--banana); text-shadow: 0 .6vh 0 #a3761a; }
   h2 { margin: 0; font-size: 7vh; line-height: 1.1; }
   .sub { margin: 0; font-size: 3vh; opacity: .9; max-width: 60ch; }
@@ -34,6 +34,10 @@
   .hint kbd { font-family: inherit; background: rgba(255,255,255,.15); border-radius: .6vh; padding: 0 .8vh; }
   .room { font-size: 2vh; opacity: .6; margin: 0; }
   .avatar { font-size: 16vh; line-height: 1; }
+  #results { justify-content: flex-start; gap: 1vh; padding-top: 4vh; background: none; pointer-events: none; }
+  #results .hint { position: absolute; bottom: 2.5vh; left: 0; right: 0; }
+  #results h1 { text-shadow: 0 .6vh 0 #a3761a, 0 0 4vh rgba(15,42,29,.6); }
+  #results .sub, #results .hint { font-size: 4vh; font-weight: 800; text-shadow: 0 0 2vh rgba(15,42,29,.9); }
   #turn { justify-content: flex-start; padding-top: 8vh; background: linear-gradient(rgba(15,42,29,.88), rgba(15,42,29,.55) 55%, rgba(15,42,29,0) 75%); }
   #turn .avatar { font-size: 10vh; }
   .scores { display: flex; gap: 2.4vw; font-size: 3vh; flex-wrap: wrap; justify-content: center; }
@@ -65,8 +69,9 @@
 </div>
 
 <div id="results" class="overlay" hidden>
-  <h1 id="resTitle">Lia wins!</h1>
-  <div class="scores" id="scores"></div>
+  <h1 id="resTitle">Hooray!</h1>
+  <p class="sub" id="resSub"></p>
+  <div class="scores" id="scores" hidden></div>
   <p class="hint">Jump to play again · or press <kbd>Enter</kbd></p>
 </div>
 
@@ -85,7 +90,7 @@ const MAXV = 9;                // metres per second at full effort
 const BASEV = 3.5;             // the runner always jogs at least this fast, running on the spot adds speed
 const GRAV = 9.8, JUMPV = 4.4; // a jump peaks just under 1 m
 const RUN_TIME = 45;           // seconds per turn
-const VERSION = '11';           // the phone reloads itself when it has an older version
+const VERSION = '12';           // the phone reloads itself when it has an older version
 const LOG_H = 0.45;
 
 const ANIMALS = {
@@ -204,10 +209,12 @@ function showResults() {
   phase = 'results'; phaseT = now();
   const rows = scores.map((s, i) => ({ ...s, p: roster[i], pts: s.fruit })).sort((a, b) => b.pts - a.pts || b.dist - a.dist);
   const top = rows[0], tie = rows.length > 1 && rows[1].pts === top.pts;
-  $('resTitle').textContent = rows.length === 1 ? 'Great run!' : tie ? "It's a tie!" : `${ANIMALS[top.p.animal].emoji} ${top.p.name} wins!`;
+  // always happy: everyone dances, the most bananas just gets a crown
+  $('resTitle').textContent = '🎉 Hooray! 🎉';
+  $('resSub').textContent = rows.length === 1 ? `${top.p.name} caught ${top.fruit} bananas!` : tie ? 'Everyone did amazing!' : `${top.p.name} caught the most bananas!`;
   const medals = ['🥇', '🥈', '🥉', '🏅'];
   $('scores').innerHTML = rows.map((r, i) => `<div class="${rows.length > 1 && r.pts === top.pts ? 'win' : ''}"><span class="place">${medals[i]}</span>${ANIMALS[r.p.animal].emoji} ${esc(r.p.name)}<b>🍌 ${r.fruit}</b>${Math.round(r.dist)} m</div>`).join('');
-  showOnly('results'); sfx.win();
+  showOnly('results'); sfx.win(); startParty();
   sendPhone({ t: 'done', ranking: rows.map(r => ({ name: r.p.name, animal: r.p.animal, pts: r.pts })) });
 }
 function backToLobby() { phase = 'lobby'; showOnly('lobby'); resetRun(); }
@@ -638,8 +645,64 @@ function drawFace(kind, C, R, t) {
   ctx.strokeStyle = '#2b1a12'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(-2.6, 20, 2.6, .2, Math.PI - .3); ctx.arc(2.6, 20, 2.6, .3, Math.PI - .2); ctx.stroke();
 }
 
+// draws one baby animal. o: kind, x, y (feet), u (scale), rot, sx, sy, face, t,
+// legs: [liftL, liftR], arms: [[y, rot], [y, rot]], sway, headRot, flop, wag, tuftBob, alpha, air
+function drawCritter(o) {
+  const kind = o.kind, C = LOOK[kind];
+  ctx.save(); ctx.translate(o.x, o.y); ctx.rotate(o.rot || 0); ctx.scale(o.u * (o.sx || 1), o.u * (o.sy || 1));
+  if (o.alpha != null) ctx.globalAlpha = o.alpha;
+
+  // legs: a lifted foot shows its pale sole
+  [[-14, o.legs[0]], [14, o.legs[1]]].forEach(([lx, lift]) => {
+    fur(lx * .75, -10 - lift * .45, 8, 11, C.dark);
+    if (lift > 4 || o.air) blob(lx * .75, -3 - lift * .8, 7, 5 * Math.min(1, lift / 12 + (o.air ? 1 : 0)), C.light);
+    else blob(lx * .75, -1, 8, 4, tint(C.dark, -.2));
+  });
+
+  // tails sit behind the body, so they're drawn first
+  const wag = o.wag || 0;
+  ctx.lineCap = 'round';
+  if (kind === 'monkey') { ctx.strokeStyle = C.dark; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(0, -22); ctx.quadraticCurveTo(26 + wag * 14, -10, 30 + wag * 10, -40); ctx.quadraticCurveTo(32 + wag * 8, -60, 18 + wag * 6, -56); ctx.stroke(); }
+  if (kind === 'lion') { ctx.strokeStyle = C.dark; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(0, -28); ctx.quadraticCurveTo(-30 - wag * 10, -6, -34 - wag * 14, -40); ctx.stroke(); fur(-34 - wag * 14, -44, 8, 9, C.light); }
+  if (kind === 'bear') fur(wag * 4, -26, 8, 7, C.dark);
+
+  // arms
+  [-1, 1].forEach((sd, i) => {
+    const [ayy, rot] = o.arms[i], ax = sd * (22 + (ayy < -50 ? 4 : 0));
+    fur(ax, ayy, 6, 12, C.dark, rot);
+    blob(ax - Math.sin(rot) * 10, ayy + Math.cos(rot) * 10 * (ayy < -50 ? -1 : 1), 5, 4, C.light);
+  });
+
+  // body and head
+  ctx.save(); ctx.rotate(o.sway || 0);
+  fur(0, -31, kind === 'bear' ? 26 : 24, 22, C.body);
+  const HEAD = 40;
+  if (kind === 'lion') for (let a = 0; a < 16; a++) { const r = a / 16 * Math.PI * 2; fur(Math.cos(r) * 38, -88 + Math.sin(r) * 38, 18, 18, C.light); }
+  ctx.save(); ctx.translate(0, -88); ctx.rotate(o.headRot || 0);
+  const flop = o.flop || 0;
+  const ear = (x, y, r, inner) => { fur(x, y, r, r * 1.05, C.body, flop * Math.sign(x)); blob(x, y, r * inner, r * inner * 1.05, C.light, flop * Math.sign(x)); };
+  if (kind === 'monkey') { ear(-41, 2, 16, .55); ear(41, 2, 16, .55); }
+  if (kind === 'koala') { ear(-42, -18, 26, .6); ear(42, -18, 26, .6); }
+  if (kind === 'bear') { ear(-29, -30, 14, .45); ear(29, -30, 14, .45); }
+  if (kind === 'lion') { ear(-25, -31, 11, .4); ear(25, -31, 11, .4); }
+  fur(0, 0, HEAD, HEAD * .94, C.body);
+  if (o.face) drawFace(kind, C, HEAD, o.t);
+  // a fluffy baby tuft on top of the head
+  const tuftC = kind === 'koala' || kind === 'lion' ? C.light : C.body;
+  [[-7, -HEAD + 2, 8, -.5], [2, -HEAD - 3, 9, .1], [10, -HEAD + 1, 7, .6]].forEach(([x, y, r, rr]) => fur(x, y - (o.tuftBob || 0), r, r * 1.3, tuftC, rr + flop));
+  ctx.restore();
+  ctx.restore();
+  ctx.restore();
+}
+
+function contactShadow(x, y, w, k = 1) {
+  const sg = ctx.createRadialGradient(x, y, 2, x, y, w * k);
+  sg.addColorStop(0, 'rgba(10,25,10,.42)'); sg.addColorStop(1, 'rgba(10,25,10,0)');
+  ctx.fillStyle = sg; ctx.beginPath(); ctx.ellipse(x, y, w * k, w * .28 * k, 0, 0, 7); ctx.fill();
+}
+
 function drawRunner(t) {
-  const kind = runner().animal, C = LOOK[kind];
+  const kind = runner().animal;
   // the child's own animal runs in front of them, centred on the path,
   // and copies every jump and lean
   const u = 1.8, gx = W / 2 + me.x * 260, gy = H - 46, ay = gy - me.h * 210;
@@ -659,71 +722,91 @@ function drawRunner(t) {
   if (landK > 0) { sx = 1 + .22 * landK; sy = 1 - .2 * landK; }
   const bob = air ? 0 : Math.abs(Math.sin(step)) * 5 * sp;
   const sway = air ? 0 : Math.sin(step) * .07 * sp;            // shoulders rock with each step
-  const leanRot = me.x * .22;                                     // body tilts into the lean
   const dizzy = me.stumble > 0 ? Math.sin(me.stumble * 14) * .25 : 0;
 
-  // soft contact shadow that shrinks as the runner rises
-  const sh = 1 - Math.min(me.h, 1) * .45, sg = ctx.createRadialGradient(gx, gy, 2, gx, gy, 46 * u * sh);
-  sg.addColorStop(0, 'rgba(10,25,10,.42)'); sg.addColorStop(1, 'rgba(10,25,10,0)');
-  ctx.fillStyle = sg; ctx.beginPath(); ctx.ellipse(gx, gy, 46 * u * sh, 13 * u * sh, 0, 0, 7); ctx.fill();
+  contactShadow(gx, gy, 46 * u, 1 - Math.min(me.h, 1) * .45);
   drawDust(t);
 
-  ctx.save(); ctx.translate(gx, ay - bob * u); ctx.rotate(leanRot + dizzy); ctx.scale(u * sx, u * sy);
-  if (me.stumble > 0 && Math.sin(t * 40) > 0) ctx.globalAlpha = .6;
-
-  // legs: the lifted foot shows its pale sole as it kicks back
-  [[-14, 0], [14, Math.PI]].forEach(([lx, off]) => {
-    const ph = Math.sin(step + off), lift = air ? 10 : Math.max(0, ph) * 16 * sp;
-    fur(lx * .75, -10 - lift * .45, 8, 11, C.dark);
-    if (lift > 4 || air) blob(lx * .75, -3 - lift * .8, 7, 5 * Math.min(1, lift / 12 + (air ? 1 : 0)), C.light);
-    else blob(lx * .75, -1, 8, 4, tint(C.dark, -.2));
+  const arms = [-1, 1].map((sd, i) => {
+    const swing = Math.sin(step + (i ? 0 : Math.PI)) * sp;
+    return air ? [-58, sd * -.9] : [-36 - swing * 9, sd * (.3 - swing * .35)];
   });
-
-  // tails sit behind the body, so they're drawn first, and wag with the run
-  const wag = Math.sin(step * 1.0 + 1) * .5 * (air ? 1.6 : sp + .3);
-  ctx.lineCap = 'round';
-  if (kind === 'monkey') { ctx.strokeStyle = C.dark; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(0, -22); ctx.quadraticCurveTo(26 + wag * 14, -10, 30 + wag * 10, -40); ctx.quadraticCurveTo(32 + wag * 8, -60, 18 + wag * 6, -56); ctx.stroke(); }
-  if (kind === 'lion') { ctx.strokeStyle = C.dark; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(0, -28); ctx.quadraticCurveTo(-30 - wag * 10, -6, -34 - wag * 14, -40); ctx.stroke(); fur(-34 - wag * 14, -44, 8, 9, C.light); }
-  if (kind === 'bear') fur(wag * 4, -26, 8, 7, C.dark);
-
-  // arms swing opposite to the legs; both go up for a happy jump
-  [[-1, Math.PI], [1, 0]].forEach(([sd, off]) => {
-    const swing = Math.sin(step + off) * sp;
-    const ax = sd * (22 + (air ? 4 : 0)), ayy = air ? -58 : -36 - swing * 9;
-    const rot = air ? sd * -.9 : sd * (.3 - swing * .35);
-    fur(ax, ayy, 6, 12, C.dark, rot);
-    blob(ax, ayy + (air ? -10 : 10), 5, 4, C.light);
+  drawCritter({
+    kind, t, x: gx, y: ay - bob * u, u, sx, sy, rot: me.x * .22 + dizzy, air,
+    legs: [0, Math.PI].map(off => air ? 10 : Math.max(0, Math.sin(step + off)) * 16 * sp),
+    arms, sway, headRot: -sway * 1.6,
+    flop: Math.sin(step - .8) * .15 * sp + (air ? -.25 : 0) + landK * .3,
+    wag: Math.sin(step + 1) * .5 * (air ? 1.6 : sp + .3), tuftBob: bob * .6,
+    // the animal turns round to smile at the kids during the countdown and after a catch
+    face: phase === 'countdown' || phase === 'turn' || t - (me.look || -9) < .9,
+    alpha: me.stumble > 0 && Math.sin(t * 40) > 0 ? .6 : null,
   });
-
-  // body and head (seen from behind), rocking with each step
-  ctx.save(); ctx.rotate(sway);
-  fur(0, -31, kind === 'bear' ? 26 : 24, 22, C.body);
-  const HEAD = 40;
-  if (kind === 'lion') for (let a = 0; a < 16; a++) { const r = a / 16 * Math.PI * 2; fur(Math.cos(r) * 38, -88 + Math.sin(r) * 38, 18, 18, C.light); }
-  ctx.save(); ctx.translate(0, -88); ctx.rotate(-sway * 1.6);   // head stays steadier than the body
-  // ears flop a little behind the motion
-  const flop = Math.sin(step - .8) * .15 * sp + (air ? -.25 : 0) + landK * .3;
-  const ear = (x, y, r, inner) => { fur(x, y, r, r * 1.05, C.body, flop * Math.sign(x)); blob(x, y, r * inner, r * inner * 1.05, C.light, flop * Math.sign(x)); };
-  if (kind === 'monkey') { ear(-41, 2, 16, .55); ear(41, 2, 16, .55); }
-  if (kind === 'koala') { ear(-42, -18, 26, .6); ear(42, -18, 26, .6); }
-  if (kind === 'bear') { ear(-29, -30, 14, .45); ear(29, -30, 14, .45); }
-  if (kind === 'lion') { ear(-25, -31, 11, .4); ear(25, -31, 11, .4); }
-  fur(0, 0, HEAD, HEAD * .94, C.body);
-  // the animal turns round to smile at the kids during the countdown and after a catch
-  if (phase === 'countdown' || phase === 'turn' || t - (me.look || -9) < .9) drawFace(kind, C, HEAD, t);
-  // a soft rim of light on the sunny side makes the head look round
-  // a fluffy baby tuft on top of the head, bouncing as they run
-  const tuftC = kind === 'koala' ? C.light : kind === 'lion' ? C.light : C.body;
-  [[-7, -HEAD + 2, 8, -.5], [2, -HEAD - 3, 9, .1], [10, -HEAD + 1, 7, .6]].forEach(([x, y, r, rr]) => fur(x, y - bob * .6, r, r * 1.3, tuftC, rr + flop));
-  ctx.restore();
-  ctx.restore();
-  ctx.restore();
 
   // little stars when bumping
   if (me.stumble > 0) for (let k = 0; k < 3; k++) {
     const a = t * 6 + k * 2.1; ctx.fillStyle = '#ffd23f';
     starPath(gx + Math.cos(a) * 50 * u, ay - 145 * u + Math.sin(a) * 10 * u, 14 * u, t * 4); ctx.fill();
   }
+}
+
+// ---------- the happy-dance finale: every animal dances, each with a random dance ----------
+// o is filled in by the dance for time k (seconds since the dance started)
+const DANCES = {
+  // bouncy hops with both arms up
+  hop(k, o) {
+    const c = (k * 1.8) % 1, h = Math.sin(c * Math.PI); o.y -= h * 70; o.air = h > .1;
+    o.sy = 1 + (h > .1 ? .1 : -.15); o.sx = 2 - o.sy; o.arms = [[-62, .9], [-62, -.9]]; o.legs = [h * 10, h * 10]; o.flop = -.3 * h;
+  },
+  // hips sway side to side while the arms wave
+  wiggle(k, o) {
+    const s = Math.sin(k * 6); o.rot = s * .22; o.x += s * 18;
+    o.arms = [[-58 - Math.max(0, s) * 10, .8 + s * .5], [-58 - Math.max(0, -s) * 10, -.8 + s * .5]]; o.legs = [Math.max(0, s) * 10, Math.max(0, -s) * 10]; o.wag = s;
+  },
+  // a hop-and-spin: we squeeze it sideways to fake turning round, showing back then face
+  spin(k, o) {
+    const c = (k * .7) % 1, a = c * Math.PI * 2, h = Math.sin(c * Math.PI);
+    o.y -= h * 50; o.sx = Math.abs(Math.cos(a)) * .9 + .1; o.face = Math.cos(a) > 0; o.air = h > .2;
+    o.arms = [[-60, 1.1], [-60, -1.1]]; o.legs = [6, 6];
+  },
+  // claps above the head with a little knee bounce
+  clap(k, o) {
+    const c = Math.abs(Math.sin(k * 7)); o.y -= Math.abs(Math.sin(k * 3.5)) * 14;
+    o.arms = [[-70, .4 + c * .5], [-70, -.4 - c * .5]]; o.legs = [0, 0]; o.headRot = Math.sin(k * 3.5) * .12; o.sy = 1 - c * .04;
+  },
+  // stepping twist, feet tapping
+  twist(k, o) {
+    const s = Math.sin(k * 8); o.rot = s * .12; o.sway = -s * .15; o.headRot = s * .2;
+    o.arms = [[-40 + s * 10, .2 + s * .6], [-40 - s * 10, -.2 + s * .6]]; o.legs = [Math.max(0, s) * 14, Math.max(0, -s) * 14]; o.wag = s * 1.5;
+  },
+};
+let party = { t0: 0, moves: [], confetti: [] };
+function startParty() {
+  const names = Object.keys(DANCES);
+  party = { t0: now(), moves: roster.map(() => names[Math.random() * names.length | 0]), confetti: [] };
+  for (let i = 0; i < 120; i++) party.confetti.push({ x: Math.random() * W, y: -Math.random() * H, vy: 120 + Math.random() * 160, sw: Math.random() * 6, r: Math.random() * 6, c: ['#ffd23f', '#ff7eb6', '#7ee08a', '#7fc8ff', '#ffffff', '#ffb02e'][i % 6] });
+}
+function drawParty(t) {
+  const k = t - party.t0, n = roster.length, best = Math.max(...scores.map(s => s ? s.fruit : 0));
+  const gap = Math.min(420, (W - 200) / n), x0 = W / 2 - gap * (n - 1) / 2, gy = H * .74;
+  // confetti falls behind and in front
+  for (const c of party.confetti) {
+    const y = (c.y + c.vy * k) % (H + 40), x = c.x + Math.sin(k * 2 + c.sw) * 30;
+    ctx.fillStyle = c.c; ctx.save(); ctx.translate(x, y); ctx.rotate(k * 3 + c.r); ctx.fillRect(-6, -3, 12, 6); ctx.restore();
+  }
+  roster.forEach((p, i) => {
+    const x = x0 + i * gap, s = scores[i] || { fruit: 0 };
+    const o = { kind: p.animal, t, x, y: gy, u: Math.min(1.9, gap / 210), face: true, legs: [0, 0], arms: [[-40, .3], [-40, -.3]], tuftBob: 0 };
+    contactShadow(x, gy + 4, 46 * o.u, .9);
+    DANCES[party.moves[i]](k + i * .37, o);
+    o.tuftBob = Math.sin(k * 8) * 3; o.flop = (o.flop || 0) + Math.sin(k * 5 + i) * .15;
+    drawCritter(o);
+    // a crown for the most bananas; everyone else gets a star, because everyone did great
+    ctx.font = `${Math.round(60 * o.u / 1.6)}px sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(s.fruit === best ? '👑' : '⭐', o.x, o.y - 170 * o.u + Math.sin(k * 4 + i) * 6);
+    ctx.font = '800 54px "Baloo 2", sans-serif'; outlined(p.name, x, gy + 70, '#fff8e7');
+    ctx.font = '800 64px "Baloo 2", sans-serif'; outlined(`🍌 ${s.fruit}`, x, gy + 140, '#ffd23f');
+  });
+  ctx.textBaseline = 'alphabetic';
 }
 
 function drawHud(t) {
@@ -796,6 +879,7 @@ function draw(t) {
   if (me.shake > 0) { ctx.fillStyle = `rgba(255,90,90,${me.shake * .35})`; ctx.fillRect(0, 0, W, H); }
   if (phase === 'run' || phase === 'countdown' || phase === 'end' || phase === 'between') drawHud(t);
   if (phase !== 'lobby' && phase !== 'results') drawRunner(t);
+  if (phase === 'results') { ctx.fillStyle = 'rgba(15,42,29,.35)'; ctx.fillRect(0, 0, W, H); drawParty(t); }
   drawFx(t);
 
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
