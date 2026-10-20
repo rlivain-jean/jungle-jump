@@ -90,7 +90,7 @@ const MAXV = 9;                // metres per second at full effort
 const BASEV = 3.5;             // the runner always jogs at least this fast, running on the spot adds speed
 const GRAV = 9.8, JUMPV = 4.4; // a jump peaks just under 1 m
 const RUN_TIME = 45;           // seconds per turn
-const VERSION = '12';           // the phone reloads itself when it has an older version
+const VERSION = '13';           // the phone reloads itself when it has an older version
 const LOG_H = 0.45;
 
 const ANIMALS = {
@@ -676,9 +676,9 @@ function drawCritter(o) {
   // body and head
   ctx.save(); ctx.rotate(o.sway || 0);
   fur(0, -31, kind === 'bear' ? 26 : 24, 22, C.body);
-  const HEAD = 40;
-  if (kind === 'lion') for (let a = 0; a < 16; a++) { const r = a / 16 * Math.PI * 2; fur(Math.cos(r) * 38, -88 + Math.sin(r) * 38, 18, 18, C.light); }
-  ctx.save(); ctx.translate(0, -88); ctx.rotate(o.headRot || 0);
+  const HEAD = 40, HS = 1.35;   // extra-big baby head
+  ctx.save(); ctx.translate(0, -96); ctx.rotate(o.headRot || 0); ctx.scale(HS, HS);
+  if (kind === 'lion') for (let a = 0; a < 16; a++) { const r = a / 16 * Math.PI * 2; fur(Math.cos(r) * 38, Math.sin(r) * 38, 18, 18, C.light); }
   const flop = o.flop || 0;
   const ear = (x, y, r, inner) => { fur(x, y, r, r * 1.05, C.body, flop * Math.sign(x)); blob(x, y, r * inner, r * inner * 1.05, C.light, flop * Math.sign(x)); };
   if (kind === 'monkey') { ear(-41, 2, 16, .55); ear(41, 2, 16, .55); }
@@ -745,7 +745,7 @@ function drawRunner(t) {
   // little stars when bumping
   if (me.stumble > 0) for (let k = 0; k < 3; k++) {
     const a = t * 6 + k * 2.1; ctx.fillStyle = '#ffd23f';
-    starPath(gx + Math.cos(a) * 50 * u, ay - 145 * u + Math.sin(a) * 10 * u, 14 * u, t * 4); ctx.fill();
+    starPath(gx + Math.cos(a) * 60 * u, ay - 170 * u + Math.sin(a) * 10 * u, 14 * u, t * 4); ctx.fill();
   }
 }
 
@@ -802,7 +802,7 @@ function drawParty(t) {
     drawCritter(o);
     // a crown for the most bananas; everyone else gets a star, because everyone did great
     ctx.font = `${Math.round(60 * o.u / 1.6)}px sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(s.fruit === best ? '👑' : '⭐', o.x, o.y - 170 * o.u + Math.sin(k * 4 + i) * 6);
+    ctx.fillText(s.fruit === best ? '👑' : '⭐', o.x, o.y - 195 * o.u + Math.sin(k * 4 + i) * 6);
     ctx.font = '800 54px "Baloo 2", sans-serif'; outlined(p.name, x, gy + 70, '#fff8e7');
     ctx.font = '800 64px "Baloo 2", sans-serif'; outlined(`🍌 ${s.fruit}`, x, gy + 140, '#ffd23f');
   });
