@@ -85,7 +85,7 @@ const MAXV = 9;                // metres per second at full effort
 const BASEV = 3.5;             // the runner always jogs at least this fast, running on the spot adds speed
 const GRAV = 9.8, JUMPV = 4.4; // a jump peaks just under 1 m
 const RUN_TIME = 45;           // seconds per turn
-const VERSION = '6';           // the phone reloads itself when it has an older version
+const VERSION = '7';           // the phone reloads itself when it has an older version
 const LOG_H = 0.45;
 
 const ANIMALS = {
@@ -458,9 +458,9 @@ function drawBanana(it, t) {
 function blob(x, y, rx, ry, color, rot = 0) { ctx.fillStyle = color; ctx.beginPath(); ctx.ellipse(x, y, rx, ry, rot, 0, 7); ctx.fill(); }
 function drawRunner(t) {
   const p = runner(), kind = p.animal;
-  // the child's own animal sits in the corner and copies every jump and lean
-  const u = 1.7, gx = 230 + me.x * 40, gy = H - 60, ax = gx, ay = gy - me.h * 200;
-  ctx.fillStyle = 'rgba(15,42,29,.45)'; ctx.beginPath(); ctx.ellipse(230, H - 40, 190, 60, 0, 0, 7); ctx.fill();
+  // the child's own animal runs in front of them and copies every jump and lean
+  // centred on the path, sliding left/right when leaning
+  const u = 1.7, gx = W / 2 + me.x * 260, gy = H - 50, ax = gx, ay = gy - me.h * 200;
   const step = me.dist * 2.2, air = me.h > 0;
   const legA = air ? -6 : Math.sin(step) * 9, legB = air ? -6 : -Math.sin(step) * 9;
   const bounce = air ? 0 : Math.abs(Math.sin(step)) * 4 * (me.speed / MAXV);
