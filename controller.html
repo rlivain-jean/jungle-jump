@@ -12,84 +12,143 @@
     --leaf-deep: #0f2a1d;
     --leaf: #1f5c3a;
     --banana: #ffd23f;
+    --green: #7ee08a;
     --cream: #fff8e7;
-    --me: #b5743a;
     --font: "Baloo 2", "Trebuchet MS", system-ui, sans-serif;
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  html, body { margin: 0; height: 100%; background: var(--leaf-deep); color: var(--cream); font-family: var(--font); overscroll-behavior: none; -webkit-user-select: none; user-select: none; touch-action: manipulation; }
-  main { min-height: 100%; display: flex; flex-direction: column; gap: 16px; padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); }
+  html, body { margin: 0; min-height: 100%; background: var(--leaf-deep); color: var(--cream); font-family: var(--font); overscroll-behavior: none; touch-action: manipulation; }
+  main { min-height: 100vh; display: flex; flex-direction: column; gap: 16px; padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); }
   header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-  header h1 { margin: 0; font-size: 28px; line-height: 1.1; }
+  header h1 { margin: 0; font-size: 26px; line-height: 1.1; color: var(--banana); }
   .pill { font-size: 15px; font-weight: 700; padding: 4px 12px; border-radius: 99px; background: rgba(255,255,255,.15); white-space: nowrap; }
   .pill.ok { background: #49b85a; }
-  .stage { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; text-align: center; }
+  section { display: flex; flex-direction: column; gap: 14px; }
+  section.center { flex: 1; align-items: center; justify-content: center; text-align: center; }
+  h2 { margin: 0; font-size: 24px; }
+  p { margin: 0; font-size: 18px; line-height: 1.4; }
+  .player { background: rgba(255,255,255,.08); border-radius: 20px; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+  .player .top { display: flex; gap: 8px; }
+  .player input { flex: 1; min-width: 0; font: inherit; font-size: 20px; padding: 8px 14px; border-radius: 14px; border: 0; }
+  .player .rm { font: inherit; font-size: 18px; border: 0; border-radius: 14px; width: 48px; background: rgba(255,255,255,.12); color: var(--cream); }
+  .animals { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .animals button { font-size: 32px; border: 3px solid transparent; border-radius: 14px; padding: 4px 0; background: rgba(255,255,255,.1); }
+  .animals button[aria-pressed="true"] { border-color: var(--banana); background: rgba(255,210,63,.2); }
+  .btn { font: inherit; font-size: 22px; font-weight: 800; border: 0; border-radius: 22px; padding: 14px 24px; background: var(--banana); color: var(--leaf-deep); width: 100%; }
+  .btn.ghost { background: rgba(255,255,255,.12); color: var(--cream); font-size: 18px; font-weight: 700; padding: 10px 20px; }
   .avatar { font-size: 96px; line-height: 1; transition: transform .15s; }
   .avatar.hop { transform: translateY(-40px) scale(1.1); }
-  p { margin: 0; font-size: 18px; line-height: 1.4; max-width: 34ch; }
-  .big { font: inherit; font-size: 26px; font-weight: 800; border: 0; border-radius: 24px; padding: 18px 28px; background: var(--banana); color: var(--leaf-deep); width: 100%; max-width: 360px; }
-  .meter { width: 100%; max-width: 360px; height: 26px; border-radius: 13px; background: rgba(255,255,255,.12); overflow: hidden; }
-  .meter i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #7ee08a, var(--banana)); transition: width .08s linear; }
-  .pads { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-  .pad { font: inherit; font-size: 24px; font-weight: 800; border: 0; border-radius: 24px; height: 110px; color: var(--leaf-deep); background: #7ee08a; touch-action: none; }
+  .meter { width: 100%; height: 24px; border-radius: 12px; background: rgba(255,255,255,.12); overflow: hidden; }
+  .meter i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--green), var(--banana)); transition: width .08s linear; }
+  .leanbar { position: relative; width: 100%; height: 24px; border-radius: 12px; background: rgba(255,255,255,.12); }
+  .leanbar i { position: absolute; top: 2px; width: 40px; height: 20px; margin-left: -20px; left: 50%; border-radius: 10px; background: var(--cream); transition: left .08s linear; }
+  .label { font-size: 14px; opacity: .7; text-align: left; width: 100%; }
+  .pads { display: grid; grid-template-columns: 1fr 1.4fr 1fr; gap: 10px; width: 100%; }
+  .pad { font: inherit; font-size: 20px; font-weight: 800; border: 0; border-radius: 20px; height: 90px; color: var(--leaf-deep); background: var(--green); touch-action: none; -webkit-user-select: none; user-select: none; }
   .pad.jump { background: var(--banana); }
-  .pad:active, .pad.down { filter: brightness(.85); transform: scale(.98); }
-  .sens { display: flex; gap: 8px; justify-content: center; align-items: center; font-size: 15px; }
-  .sens button { font: inherit; font-size: 15px; border: 0; border-radius: 99px; padding: 4px 12px; background: rgba(255,255,255,.12); color: var(--cream); }
-  .sens button[aria-pressed="true"] { background: var(--cream); color: var(--leaf-deep); }
-  form { display: flex; flex-direction: column; gap: 12px; width: 100%; max-width: 360px; }
-  input, select { font: inherit; font-size: 22px; padding: 12px 16px; border-radius: 16px; border: 0; text-transform: uppercase; }
+  .pad.run { grid-column: 1 / -1; height: 70px; }
+  .pad.down { filter: brightness(.8); }
+  .opts { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; align-items: center; font-size: 15px; }
+  .opts button { font: inherit; font-size: 15px; border: 0; border-radius: 99px; padding: 4px 12px; background: rgba(255,255,255,.12); color: var(--cream); }
+  .opts button[aria-pressed="true"] { background: var(--cream); color: var(--leaf-deep); }
+  .rank { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+  .rank div { display: flex; justify-content: space-between; font-size: 22px; background: rgba(255,255,255,.08); border-radius: 16px; padding: 8px 16px; }
+  form { display: flex; flex-direction: column; gap: 12px; }
+  form input { font: inherit; font-size: 24px; padding: 12px 16px; border-radius: 16px; border: 0; text-transform: uppercase; text-align: center; }
   [hidden] { display: none !important; }
 </style>
 </head>
 <body>
 <main>
   <header>
-    <h1 id="title">Jungle Jump</h1>
+    <h1>Jungle Jump</h1>
     <span class="pill" id="net">Not connected</span>
   </header>
 
-  <section class="stage" id="join" hidden>
+  <!-- no room in the link: type the code from the TV -->
+  <section class="center" id="join" hidden>
     <p>Type the room code shown on the TV.</p>
     <form id="joinForm">
       <input id="roomIn" maxlength="4" placeholder="ABCD" autocomplete="off" required>
-      <select id="playerIn"><option value="1">Player 1 · Monkey</option><option value="2">Player 2 · Frog</option></select>
-      <button class="big" type="submit">Join</button>
+      <button class="btn" type="submit">Join</button>
     </form>
   </section>
 
-  <section class="stage" id="stage" hidden>
-    <div class="avatar" id="avatar">🐒</div>
-    <p id="msg">Hold the phone in your hand.<br>Run on the spot to run. Jump to jump!</p>
-    <button class="big" id="startBtn" type="button">Tap to start</button>
-    <div class="meter" id="meterWrap" hidden><i id="meter"></i></div>
-    <div class="sens" id="sens" hidden>Sensitivity
-      <button type="button" data-s="0.75" aria-pressed="false">Low</button>
-      <button type="button" data-s="1" aria-pressed="true">Normal</button>
-      <button type="button" data-s="1.35" aria-pressed="false">High</button>
-    </div>
+  <!-- who's playing -->
+  <section id="setup" hidden>
+    <h2>Who's playing?</h2>
+    <div id="players" style="display:flex;flex-direction:column;gap:12px"></div>
+    <button class="btn ghost" id="addBtn" type="button">+ Add player</button>
+    <button class="btn" id="startBtn" type="button">Start game</button>
   </section>
 
-  <div class="pads" id="pads" hidden>
-    <button class="pad" id="runPad" type="button">Hold to run</button>
-    <button class="pad jump" id="jumpPad" type="button">Jump</button>
-  </div>
+  <!-- playing -->
+  <section class="center" id="play" hidden>
+    <div class="avatar" id="avatar">🐒</div>
+    <h2 id="who">Lia's turn</h2>
+    <p id="msg">Hold the phone in front of you with both hands.<br>Run on the spot, jump, lean left and right!</p>
+    <div class="label">Running</div>
+    <div class="meter"><i id="meter"></i></div>
+    <div class="label">Leaning</div>
+    <div class="leanbar"><i id="leanDot"></i></div>
+    <div class="pads">
+      <button class="pad" id="leftPad" type="button">⬅</button>
+      <button class="pad jump" id="jumpPad" type="button">Jump</button>
+      <button class="pad" id="rightPad" type="button">➡</button>
+      <button class="pad run" id="runPad" type="button">Hold to run</button>
+    </div>
+    <div class="opts">Sensitivity
+      <span id="sens"><button type="button" data-s="0.75" aria-pressed="false">Low</button> <button type="button" data-s="1" aria-pressed="true">Normal</button> <button type="button" data-s="1.35" aria-pressed="false">High</button></span>
+      <button type="button" id="flipBtn" aria-pressed="false">Swap left/right</button>
+    </div>
+    <button class="btn ghost" id="toSetup" type="button">Change players</button>
+  </section>
+
+  <!-- results -->
+  <section class="center" id="done" hidden>
+    <h2>Results</h2>
+    <div class="rank" id="rank"></div>
+    <button class="btn" id="againBtn" type="button">Play again</button>
+    <button class="btn ghost" id="changeBtn" type="button">Change players</button>
+  </section>
 </main>
 
 <script src="vendor/peerjs.min.js"></script>
 <script>
 const $ = id => document.getElementById(id);
-const qs = new URLSearchParams(location.search);
-let room = (qs.get('room') || '').toUpperCase();
-let pn = qs.get('p') === '2' ? 2 : 1;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const ANIMALS = { monkey: '🐒', koala: '🐨', bear: '🐻', lion: '🦁' };
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+let room = (new URLSearchParams(location.search).get('room') || '').toUpperCase();
 
-function setupPlayer() {
-  const frog = pn === 2;
-  document.documentElement.style.setProperty('--me', frog ? '#49b85a' : '#b5743a');
-  $('title').textContent = frog ? 'Player 2 · Frog' : 'Player 1 · Monkey';
-  $('avatar').textContent = frog ? '🐸' : '🐒';
+function show(id) { ['join', 'setup', 'play', 'done'].forEach(x => $(x).hidden = x !== id); }
+function store(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+function load(k, d) { try { const v = JSON.parse(localStorage.getItem(k)); return v ?? d; } catch (e) { return d; } }
+
+// ---------- players ----------
+let roster = load('jj-roster', [{ name: '', animal: 'monkey' }, { name: '', animal: 'koala' }]);
+function renderPlayers() {
+  $('players').innerHTML = roster.map((p, i) => `
+    <div class="player">
+      <div class="top"><input data-i="${i}" placeholder="Player ${i + 1}" value="${esc(p.name)}" maxlength="14" aria-label="Name of player ${i + 1}">
+      ${roster.length > 1 ? `<button class="rm" data-rm="${i}" type="button" aria-label="Remove player">✕</button>` : ''}</div>
+      <div class="animals">${Object.entries(ANIMALS).map(([k, e]) => `<button type="button" data-i="${i}" data-a="${k}" aria-pressed="${p.animal === k}">${e}</button>`).join('')}</div>
+    </div>`).join('');
+  $('addBtn').hidden = roster.length >= 4;
 }
+function cleanRoster() { return roster.map((p, i) => ({ name: p.name.trim() || `Player ${i + 1}`, animal: p.animal })); }
+function syncRoster() { store('jj-roster', roster); send({ t: 'roster', players: cleanRoster() }); }
+$('players').addEventListener('input', e => { if (e.target.dataset.i) { roster[+e.target.dataset.i].name = e.target.value; syncRoster(); } });
+$('players').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.rm) roster.splice(+b.dataset.rm, 1);
+  else if (b.dataset.a) roster[+b.dataset.i].animal = b.dataset.a;
+  renderPlayers(); syncRoster();
+});
+$('addBtn').onclick = () => {
+  const used = roster.map(p => p.animal), free = Object.keys(ANIMALS).find(a => !used.includes(a)) || 'monkey';
+  roster.push({ name: '', animal: free }); renderPlayers(); syncRoster();
+};
 
 // ---------- connection ----------
 let peer = null, conn = null, retry = null;
@@ -101,25 +160,44 @@ function connect() {
     peer = new Peer();
     peer.on('open', openConn);
     peer.on('disconnected', () => { try { peer.reconnect(); } catch (e) {} });
-    peer.on('error', e => {
-      setNet(e.type === 'peer-unavailable' ? 'TV not found' : 'Connection problem');
-      retry = setTimeout(connect, 2500);
-    });
+    peer.on('error', e => { setNet(e.type === 'peer-unavailable' ? 'TV not found' : 'Connection problem'); retry = setTimeout(connect, 2500); });
   } else openConn();
 }
 function openConn() {
-  conn = peer.connect('jungle-jump-' + room, { metadata: { p: pn }, serialization: 'json' });
+  conn = peer.connect('jungle-jump-' + room, { serialization: 'json' });
   conn.on('open', () => setNet('Connected', true));
-  conn.on('data', d => { if (d && d.t === 'hi') setNet('Connected', true); });
+  conn.on('data', onTv);
   conn.on('close', () => { setNet('Reconnecting…'); retry = setTimeout(connect, 1500); });
 }
-function send(msg) { if (conn && conn.open) { try { conn.send(msg); } catch (e) {} } }
+function send(m) { if (conn && conn.open) { try { conn.send(m); } catch (e) {} } }
 
-// ---------- motion detection ----------
-// Running in place makes the phone shake rhythmically -> we measure how much the
-// acceleration varies over the last 0.8 s. A real jump has a short "free fall"
-// moment where the phone feels almost weightless -> that triggers a jump.
-let sens = 1, level = 0, manualRun = 0, motionSeen = false;
+function onTv(d) {
+  if (!d || typeof d !== 'object') return;
+  if (d.t === 'roster' && Array.isArray(d.players) && !load('jj-roster', null)) {
+    roster = d.players.map(p => ({ name: p.name, animal: p.animal })); renderPlayers();
+  }
+  if (d.t === 'roster' && d.phase === 'lobby' && $('play').hidden && $('done').hidden) show('setup');
+  if (d.t === 'turn') {
+    $('avatar').textContent = ANIMALS[d.animal] || '🐒';
+    $('who').textContent = `${d.name}'s turn${d.total > 1 ? ` (${d.idx + 1} of ${d.total})` : ''}`;
+    $('msg').innerHTML = 'Hold the phone in front of you with both hands.<br><b>Jump to start!</b>';
+    show('play');
+  }
+  if (d.t === 'running') $('msg').innerHTML = 'Run on the spot, jump, lean left and right!';
+  if (d.t === 'bump' && navigator.vibrate) navigator.vibrate(120);
+  if (d.t === 'done') {
+    const medals = ['🥇', '🥈', '🥉', '🏅'];
+    $('rank').innerHTML = (d.ranking || []).map((r, i) => `<div><span>${medals[i]} ${ANIMALS[r.animal] || ''} ${esc(r.name)}</span><b>${r.pts}</b></div>`).join('');
+    show('done');
+  }
+}
+
+// ---------- motion ----------
+// Running on the spot makes the phone shake rhythmically: we measure how much the
+// acceleration varies over the last 0.8 s. A real jump has a short "weightless"
+// moment (free fall). Leaning sideways tilts the phone, which shifts gravity left/right.
+let sens = 1, flip = load('jj-flip', false), level = 0, lean = 0, gx = 0, motionSeen = false, motionOn = false;
+let manualRun = 0, manualLean = 0;
 const buf = [];
 let ffStart = 0, peakAt = 0, lastJump = 0;
 
@@ -127,8 +205,7 @@ function onMotion(e) {
   const a = e.accelerationIncludingGravity;
   if (!a || a.x == null) return;
   motionSeen = true;
-  const t = performance.now();
-  const mag = Math.hypot(a.x, a.y, a.z);
+  const t = performance.now(), mag = Math.hypot(a.x, a.y, a.z);
   buf.push([t, mag]);
   while (buf.length && t - buf[0][0] > 800) buf.shift();
   let mean = 0; for (const [, m] of buf) mean += m; mean /= buf.length;
@@ -137,7 +214,12 @@ function onMotion(e) {
   const target = clamp((sd * sens - 1.3) / 5, 0, 1);
   level += (target - level) * (target > level ? .35 : .08);
 
-  // jump detection
+  // lean: smoothed sideways gravity, about 25° of tilt = full lean
+  gx += (a.x - gx) * .12;
+  const l = clamp((gx * (flip ? -1 : 1)) / 4.2, -1, 1);
+  lean = Math.abs(l) < .25 ? 0 : l;
+
+  // jump: weightless moment, or a strong push-off followed by lift-off
   if (mag > 22 / sens) peakAt = t;
   if (mag < 4.5) { if (!ffStart) ffStart = t; } else ffStart = 0;
   const freefall = ffStart && t - ffStart > 110 / sens;
@@ -153,54 +235,55 @@ function doJump() {
 }
 
 setInterval(() => {
-  const v = Math.max(level, manualRun);
+  const v = Math.max(level, manualRun), l = manualLean || lean;
   $('meter').style.width = Math.round(v * 100) + '%';
-  send({ t: 'r', v: +v.toFixed(2) });
+  $('leanDot').style.left = (50 + l * 45) + '%';
+  send({ t: 'r', v: +v.toFixed(2), l: +l.toFixed(2) });
 }, 66);
 
-async function start() {
+async function enableMotion() {
+  if (motionOn) return; motionOn = true;
   try {
     if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
       const r = await DeviceMotionEvent.requestPermission();
       if (r !== 'granted') throw new Error('denied');
     }
     addEventListener('devicemotion', onMotion);
-  } catch (e) {
-    $('msg').textContent = 'Motion is off. Use the buttons below, or reload the page and tap “Allow”.';
-  }
+  } catch (e) { $('msg').textContent = 'Motion is off. Use the buttons below, or reload the page and tap “Allow”.'; }
   try { if (navigator.wakeLock) await navigator.wakeLock.request('screen'); } catch (e) {}
-  $('startBtn').hidden = true; $('meterWrap').hidden = false; $('sens').hidden = false; $('pads').hidden = false;
-  setTimeout(() => { if (!motionSeen) $('msg').textContent = 'No motion sensor found. Use the buttons below.'; }, 2500);
+  setTimeout(() => { if (!motionSeen) $('msg').textContent = 'No motion sensor found. Use the buttons below.'; }, 3000);
 }
-$('startBtn').onclick = start;
+
+$('startBtn').onclick = async () => { await enableMotion(); send({ t: 'start', players: cleanRoster() }); };
+$('againBtn').onclick = () => send({ t: 'start', players: cleanRoster() });
+$('changeBtn').onclick = $('toSetup').onclick = () => { send({ t: 'lobby' }); renderPlayers(); show('setup'); };
 
 document.querySelectorAll('#sens button').forEach(b => b.onclick = () => {
   sens = +b.dataset.s;
   document.querySelectorAll('#sens button').forEach(x => x.setAttribute('aria-pressed', x === b));
 });
+$('flipBtn').setAttribute('aria-pressed', flip);
+$('flipBtn').onclick = () => { flip = !flip; store('jj-flip', flip); $('flipBtn').setAttribute('aria-pressed', flip); };
 
 // fallback buttons
-const runPad = $('runPad');
-runPad.addEventListener('pointerdown', e => { e.preventDefault(); manualRun = 1; runPad.classList.add('down'); });
-['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => runPad.addEventListener(ev, () => { manualRun = 0; runPad.classList.remove('down'); }));
+function hold(el, on, off) {
+  el.addEventListener('pointerdown', e => { e.preventDefault(); el.classList.add('down'); on(); });
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => el.addEventListener(ev, () => { el.classList.remove('down'); off(); }));
+}
+hold($('runPad'), () => manualRun = 1, () => manualRun = 0);
+hold($('leftPad'), () => manualLean = -1, () => manualLean = 0);
+hold($('rightPad'), () => manualLean = 1, () => manualLean = 0);
 $('jumpPad').addEventListener('pointerdown', e => { e.preventDefault(); doJump(); });
 
-// keep the wake lock after switching apps
 document.addEventListener('visibilitychange', async () => {
-  if (document.visibilityState === 'visible' && navigator.wakeLock) { try { await navigator.wakeLock.request('screen'); } catch (e) {} }
+  if (document.visibilityState === 'visible' && navigator.wakeLock && motionOn) { try { await navigator.wakeLock.request('screen'); } catch (e) {} }
 });
 
 // ---------- boot ----------
-$('joinForm').onsubmit = e => {
-  e.preventDefault();
-  room = $('roomIn').value.trim().toUpperCase(); pn = +$('playerIn').value;
-  history.replaceState(null, '', `?room=${room}&p=${pn}`);
-  boot();
-};
+$('joinForm').onsubmit = e => { e.preventDefault(); room = $('roomIn').value.trim().toUpperCase(); history.replaceState(null, '', `?room=${room}`); boot(); };
 function boot() {
-  if (!/^[A-Z]{4}$/.test(room)) { $('join').hidden = false; return; }
-  $('join').hidden = true; $('stage').hidden = false;
-  setupPlayer(); connect();
+  if (!/^[A-Z]{4}$/.test(room)) { show('join'); return; }
+  renderPlayers(); show('setup'); connect();
 }
 boot();
 </script>

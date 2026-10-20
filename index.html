@@ -8,37 +8,39 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&display=swap">
 <style>
   :root {
-    --leaf: #1f5c3a;
     --leaf-deep: #0f2a1d;
     --banana: #ffd23f;
-    --monkey: #b5743a;
-    --frog: #49b85a;
+    --green: #49b85a;
     --cream: #fff8e7;
     --font: "Baloo 2", "Trebuchet MS", system-ui, sans-serif;
   }
   html, body { margin: 0; height: 100%; background: var(--leaf-deep); overflow: hidden; font-family: var(--font); color: var(--cream); }
   canvas { display: block; width: 100vw; height: 100vh; object-fit: contain; }
-  .overlay { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2.5vh; background: radial-gradient(ellipse at center, rgba(15,42,29,.82), rgba(15,42,29,.96)); text-align: center; }
+  .overlay { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2.4vh; background: radial-gradient(ellipse at center, rgba(15,42,29,.74), rgba(15,42,29,.94)); text-align: center; }
   .overlay[hidden] { display: none; }
-  h1 { margin: 0; font-size: 9vh; line-height: 1; font-weight: 800; color: var(--banana); text-shadow: 0 .6vh 0 #a3761a; letter-spacing: .02em; }
-  .sub { margin: 0; font-size: 2.8vh; opacity: .85; }
-  .cards { display: flex; gap: 5vw; }
-  .card { background: var(--cream); color: var(--leaf-deep); border-radius: 3vh; padding: 2.5vh 3vh; display: flex; flex-direction: column; align-items: center; gap: 1vh; min-width: 26vh; border: .8vh solid transparent; transition: border-color .2s; }
-  .card.p1 { border-color: var(--monkey); }
-  .card.p2 { border-color: var(--frog); }
-  .card h2 { margin: 0; font-size: 3.6vh; }
-  .card .qr svg { width: 24vh; height: 24vh; display: block; }
+  h1 { margin: 0; font-size: 10vh; line-height: 1; font-weight: 800; color: var(--banana); text-shadow: 0 .6vh 0 #a3761a; }
+  h2 { margin: 0; font-size: 7vh; line-height: 1.1; }
+  .sub { margin: 0; font-size: 3vh; opacity: .9; max-width: 60ch; }
+  .row { display: flex; gap: 4vw; align-items: center; }
+  .card { background: var(--cream); color: var(--leaf-deep); border-radius: 3vh; padding: 2.4vh 3vh; display: flex; flex-direction: column; align-items: center; gap: 1vh; }
+  .card .qr svg { width: 26vh; height: 26vh; display: block; }
   .status { font-size: 2.6vh; font-weight: 700; padding: .3vh 1.6vh; border-radius: 99px; background: #e9e1cc; }
-  .status.on { background: var(--frog); color: #fff; }
-  .status.ready { background: var(--banana); color: var(--leaf-deep); }
-  .hint { font-size: 2.6vh; }
+  .status.on { background: var(--green); color: #fff; }
+  .roster { display: flex; flex-direction: column; gap: 1.2vh; min-width: 40vh; text-align: left; }
+  .roster h3 { margin: 0; font-size: 3vh; opacity: .8; }
+  .roster div { font-size: 3.6vh; font-weight: 700; background: rgba(255,255,255,.1); border-radius: 99px; padding: .6vh 2.4vh; }
+  button.sound { font: inherit; font-weight: 700; font-size: 2.2vh; border: 0; border-radius: 99px; padding: .6vh 2vh; background: rgba(255,255,255,.15); color: var(--cream); cursor: pointer; }
+  .hint { font-size: 2.8vh; margin: 0; }
   .hint kbd { font-family: inherit; background: rgba(255,255,255,.15); border-radius: .6vh; padding: 0 .8vh; }
-  .room { font-size: 2vh; opacity: .6; }
-  button.sound { font: inherit; font-size: 2.2vh; border: 0; border-radius: 99px; padding: .6vh 2vh; background: rgba(255,255,255,.15); color: var(--cream); cursor: pointer; }
-  #results h1 { font-size: 10vh; }
-  .podium { display: flex; gap: 5vw; font-size: 3.4vh; }
-  .podium div { background: rgba(255,255,255,.08); border-radius: 3vh; padding: 2vh 4vh; }
-  .podium b { display: block; font-size: 5vh; }
+  .room { font-size: 2vh; opacity: .6; margin: 0; }
+  .avatar { font-size: 16vh; line-height: 1; }
+  #turn { justify-content: flex-start; padding-top: 8vh; background: linear-gradient(rgba(15,42,29,.88), rgba(15,42,29,.55) 55%, rgba(15,42,29,0) 75%); }
+  #turn .avatar { font-size: 10vh; }
+  .scores { display: flex; gap: 2.4vw; font-size: 3vh; flex-wrap: wrap; justify-content: center; }
+  .scores div { background: rgba(255,255,255,.08); border-radius: 3vh; padding: 2vh 3vh; min-width: 20vh; }
+  .scores b { display: block; font-size: 5.4vh; line-height: 1.1; color: var(--banana); }
+  .scores .place { font-size: 4vh; display: block; }
+  .scores .win { outline: .6vh solid var(--banana); }
 </style>
 </head>
 <body>
@@ -46,19 +48,25 @@
 
 <div id="lobby" class="overlay">
   <h1>Jungle Jump</h1>
-  <p class="sub">Run on the spot to run. Jump for real to jump. First to the waterfall wins!</p>
-  <div class="cards">
-    <div class="card p1"><h2>🐒 Player 1 · Monkey</h2><div class="qr" id="qr1"></div><span class="status" id="st1">Scan to join</span></div>
-    <div class="card p2"><h2>🐸 Player 2 · Frog</h2><div class="qr" id="qr2"></div><span class="status" id="st2">Scan to join</span></div>
+  <p class="sub">Run on the spot to run. Jump over the logs. Lean left or right to dodge the bushes. Grab the bananas!</p>
+  <div class="row">
+    <div class="card"><div class="qr" id="qr"></div><span class="status" id="phoneSt">Scan with the iPhone</span></div>
+    <div class="roster"><h3>Who's playing?</h3><div id="rosterList"></div></div>
   </div>
-  <p class="hint" id="startHint">Everyone jump to start · or press <kbd>Enter</kbd></p>
+  <p class="hint" id="lobbyHint">Add players on the iPhone, then tap Start</p>
   <button class="sound" id="soundBtn" type="button">🔊 Turn sound on</button>
   <p class="room" id="roomLine">Connecting…</p>
 </div>
 
+<div id="turn" class="overlay" hidden>
+  <div class="avatar" id="turnAvatar">🐒</div>
+  <h2 id="turnTitle">Lia's turn!</h2>
+  <p class="sub" id="turnSub">Hold the phone tight, then jump to start!</p>
+</div>
+
 <div id="results" class="overlay" hidden>
-  <h1 id="winner">Monkey wins!</h1>
-  <div class="podium" id="podium"></div>
+  <h1 id="resTitle">Lia wins!</h1>
+  <div class="scores" id="scores"></div>
   <p class="hint">Jump to play again · or press <kbd>Enter</kbd></p>
 </div>
 
@@ -66,21 +74,32 @@
 <script src="vendor/qrcode.min.js"></script>
 <script>
 // ---------- constants ----------
-const W = 1920, H = 1080, LANE = H / 2, GROUND = LANE - 92;
-const PX = 48;            // pixels per metre
-const RACE = 250;         // metres to the finish
-const MAXV = 10;          // metres per second at full effort
-const GRAV = 2300, JUMPV = 980;
-const PLAYER_X = 380;
+const W = 1920, H = 1080;
+const HORIZON = H * 0.36;      // screen y of the horizon
+const FOCAL = H * 0.95;        // perspective strength
+const EYE = 1.05;              // eye height of the runner, metres
+const LANE = 1.1;              // how far a full lean moves you sideways
+const PATH = 1.7;              // half width of the path in metres
+const FAR = 70;                // view distance in metres
+const MAXV = 9;                // metres per second at full effort
+const GRAV = 9.8, JUMPV = 4.4; // a jump peaks just under 1 m
+const RUN_TIME = 45;           // seconds per turn
+const LOG_H = 0.45;
+
+const ANIMALS = {
+  monkey: { label: 'Monkey', emoji: '🐒' },
+  koala:  { label: 'Koala',  emoji: '🐨' },
+  bear:   { label: 'Bear',   emoji: '🐻' },
+  lion:   { label: 'Lion',   emoji: '🦁' },
+};
 
 const cvs = document.getElementById('c');
 const ctx = cvs.getContext('2d');
 const $ = id => document.getElementById(id);
-
-// ---------- helpers ----------
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const now = () => performance.now() / 1000;
-function hash(i) { let x = Math.sin(i * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); }
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+function hash(i) { const x = Math.sin(i * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); }
 function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
 
 // ---------- sound ----------
@@ -97,367 +116,444 @@ function beep(freq, dur = .12, type = 'square', vol = .08, slide = 0) {
 const sfx = {
   jump: () => beep(380, .18, 'square', .06, 2),
   banana: () => { beep(880, .08, 'triangle', .1); setTimeout(() => beep(1320, .1, 'triangle', .1), 70); },
-  bonk: () => beep(160, .25, 'sawtooth', .08, .5),
+  bonk: () => beep(150, .3, 'sawtooth', .09, .5),
+  splash: () => beep(300, .25, 'sine', .08, .4),
   tick: () => beep(520, .15, 'triangle', .12),
   go: () => beep(1040, .4, 'triangle', .12),
+  end: () => [784, 659, 523].forEach((f, i) => setTimeout(() => beep(f, .2, 'triangle', .1), i * 120)),
   win: () => [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => beep(f, .25, 'triangle', .12), i * 140)),
 };
 $('soundBtn').onclick = unlockAudio;
 addEventListener('pointerdown', unlockAudio);
 
-// ---------- course ----------
-let course;
-function makeCourse(seed) {
-  const r = mulberry32(seed), obstacles = [], bananas = [];
-  let m = 20;
-  while (m < RACE - 15) {
-    const type = r() < .55 ? 'log' : 'rock';
-    obstacles.push({ m, type, w: type === 'log' ? 74 : 62, h: type === 'log' ? 48 : 60, hit: [false, false] });
-    if (r() < .5) bananas.push({ m, y: 190, got: [false, false] });
-    else if (r() < .7) for (let k = 0; k < 3; k++) bananas.push({ m: m + 4 + k * 1.3, y: 60, got: [false, false] });
-    m += 9 + r() * 8;
-  }
-  return { obstacles, bananas };
+// ---------- players (set up on the iPhone) ----------
+let roster = [{ name: 'Player 1', animal: 'monkey' }, { name: 'Player 2', animal: 'koala' }];
+try { const saved = JSON.parse(localStorage.getItem('jj-roster')); if (Array.isArray(saved) && saved.length) roster = saved; } catch (e) {}
+function setRoster(list) {
+  if (!Array.isArray(list)) return;
+  const clean = list.slice(0, 4).map((p, i) => ({ name: String(p.name || `Player ${i + 1}`).slice(0, 14), animal: ANIMALS[p.animal] ? p.animal : 'monkey' }));
+  if (!clean.length) return;
+  roster = clean;
+  try { localStorage.setItem('jj-roster', JSON.stringify(roster)); } catch (e) {}
+  renderRoster();
+}
+function renderRoster() {
+  $('rosterList').innerHTML = roster.map(p => `<div>${ANIMALS[p.animal].emoji} ${esc(p.name)}</div>`).join('');
 }
 
-// ---------- players ----------
-const players = [0, 1].map(i => ({
-  i, name: i ? 'Frog' : 'Monkey', kind: i ? 'frog' : 'monkey',
-  conn: null, connected: false, kb: false, ready: false,
-}));
-function resetPlayer(p) {
-  Object.assign(p, { dist: 0, speed: 0, run: 0, lastInput: 0, y: 0, vy: 0, stumble: 0, jumpQ: 0, fruit: 0, finished: null, flash: 0 });
+// ---------- course ----------
+// Logs must be jumped, bushes dodged by leaning, puddles slow you down,
+// low bananas are collected by running, high bananas by jumping.
+function makeCourse(seed) {
+  const r = mulberry32(seed), items = [];
+  let m = 25;
+  while (m < MAXV * RUN_TIME + 60) {
+    const k = r();
+    if (k < .5) items.push({ type: 'log', z: m, done: false });
+    else if (k < .82) items.push({ type: 'bush', z: m, side: r() < .5 ? -1 : 1, done: false });
+    else items.push({ type: 'puddle', z: m, done: false });
+    if (k < .5 && r() < .55) items.push({ type: 'banana', z: m, h: 1.2, x: 0, done: false });
+    const bx = (Math.floor(r() * 3) - 1) * LANE;
+    if (r() < .7) for (let k = 0; k < 3; k++) items.push({ type: 'banana', z: m + 7 + k * 1.6, h: .55, x: bx, done: false });
+    m += 16 + r() * 14;
+  }
+  return items;
 }
-players.forEach(resetPlayer);
-const active = p => p.connected || p.kb;
 
 // ---------- game state ----------
-let phase = 'lobby', phaseT = 0, raceT = 0, firstFinish = null;
-let popups = [];
+let turnIdx = 0, scores = [];
+let phase = 'lobby', phaseT = 0;
+let course = [], popups = [];
+const me = { x: 0, lean: 0, dist: 0, speed: 0, run: 0, lastInput: 0, h: 0, vh: 0, stumble: 0, jumpQ: 0, fruit: 0, shake: 0, splash: 0, time: 0 };
+const runner = () => roster[turnIdx] || roster[0];
 
-function startCountdown() {
-  if (!players.some(active)) return;
-  course = makeCourse((Math.random() * 1e9) | 0);
-  players.forEach(resetPlayer);
-  players.forEach(p => p.inRace = active(p));
-  popups = []; firstFinish = null;
-  phase = 'countdown'; phaseT = now();
-  $('lobby').hidden = true; $('results').hidden = true;
-  sfx.tick();
+function resetRun() {
+  Object.assign(me, { x: 0, dist: 0, speed: 0, h: 0, vh: 0, stumble: 0, jumpQ: 0, fruit: 0, shake: 0, splash: 0, time: 0 });
+  course = makeCourse((Math.random() * 1e9) | 0); popups = [];
+}
+const points = s => Math.round(s.dist) + s.fruit * 10;
+function showOnly(id) { ['lobby', 'turn', 'results'].forEach(x => $(x).hidden = x !== id); }
+
+function newGame() { scores = []; turnIdx = 0; showTurn(); }
+function showTurn() {
+  phase = 'turn'; phaseT = now(); resetRun();
+  const p = runner();
+  $('turnAvatar').textContent = ANIMALS[p.animal].emoji;
+  $('turnTitle').textContent = `${p.name}'s turn!`;
+  $('turnSub').textContent = turnIdx > 0 ? 'Pass the phone. Hold it tight, then jump to start!' : 'Hold the phone tight, then jump to start!';
+  showOnly('turn'); sendTurn();
+}
+function sendTurn() { const p = runner(); sendPhone({ t: 'turn', name: p.name, animal: p.animal, idx: turnIdx, total: roster.length }); }
+function startCountdown() { phase = 'countdown'; phaseT = now(); showOnly(null); sfx.tick(); sendPhone({ t: 'running' }); }
+function endRun() {
+  sfx.end();
+  scores[turnIdx] = { dist: me.dist, fruit: me.fruit };
+  turnIdx++;
+  phase = 'between'; phaseT = now();
+  setTimeout(() => turnIdx < roster.length ? showTurn() : showResults(), 2600);
+}
+function showResults() {
+  phase = 'results'; phaseT = now();
+  const rows = scores.map((s, i) => ({ ...s, p: roster[i], pts: points(s) })).sort((a, b) => b.pts - a.pts);
+  const top = rows[0], tie = rows.length > 1 && rows[1].pts === top.pts;
+  $('resTitle').textContent = rows.length === 1 ? 'Great run!' : tie ? "It's a tie!" : `${ANIMALS[top.p.animal].emoji} ${top.p.name} wins!`;
+  const medals = ['🥇', '🥈', '🥉', '🏅'];
+  $('scores').innerHTML = rows.map((r, i) => `<div class="${rows.length > 1 && r.pts === top.pts ? 'win' : ''}"><span class="place">${medals[i]}</span>${ANIMALS[r.p.animal].emoji} ${esc(r.p.name)}<b>${r.pts} pts</b>${Math.round(r.dist)} m · 🍌 ${r.fruit}</div>`).join('');
+  showOnly('results'); sfx.win();
+  sendPhone({ t: 'done', ranking: rows.map(r => ({ name: r.p.name, animal: r.p.animal, pts: r.pts })) });
+}
+function backToLobby() { phase = 'lobby'; showOnly('lobby'); resetRun(); }
+
+// one action for everything: a real jump, the phone's jump button, Space or Enter
+function action() {
+  if (phase === 'lobby') newGame();
+  else if (phase === 'turn' && now() - phaseT > .8) startCountdown();
+  else if (phase === 'run') me.jumpQ = now() + .25;
+  else if (phase === 'results' && now() - phaseT > 2) newGame();
 }
 
-function jump(p) {
-  if (phase === 'lobby') { p.ready = true; updateLobby(); maybeAutoStart(); return; }
-  if (phase === 'results') { if (now() - phaseT > 2) startCountdown(); return; }
-  if (phase === 'race') p.jumpQ = now() + .25;
-}
-
-function maybeAutoStart() {
-  const act = players.filter(active);
-  if (act.length && act.every(p => p.ready)) startCountdown();
-}
-
-// ---------- keyboard ----------
+// ---------- keyboard (for testing on the computer) ----------
 const keys = {};
 addEventListener('keydown', e => {
   unlockAudio();
   if (keys[e.code]) return; keys[e.code] = true;
-  if (e.code === 'Enter') { if (phase === 'lobby') startCountdown(); else if (phase === 'results') startCountdown(); }
-  if (e.code === 'KeyW') { players[0].kb = true; updateLobby(); jump(players[0]); }
-  if (e.code === 'ArrowUp') { players[1].kb = true; updateLobby(); jump(players[1]); }
-  if (e.code === 'KeyD') { players[0].kb = true; updateLobby(); }
-  if (e.code === 'ArrowRight') { players[1].kb = true; updateLobby(); }
+  if (['Space', 'Enter'].includes(e.code)) { e.preventDefault(); action(); }
+  if (phase === 'lobby' && /^Digit[1-4]$/.test(e.code)) {
+    const n = +e.code.slice(5), kinds = Object.keys(ANIMALS);
+    setRoster(Array.from({ length: n }, (_, i) => roster[i] || { name: `Player ${i + 1}`, animal: kinds[i] }));
+    sendPhone({ t: 'roster', players: roster });
+  }
+  if (e.code === 'Escape') backToLobby();
 });
 addEventListener('keyup', e => { keys[e.code] = false; });
 
-// ---------- networking (phones connect via PeerJS) ----------
-let peer, room;
+// ---------- networking: the phone connects through PeerJS ----------
+let peer, room, phone = null;
 function newRoom() { const a = 'ABCDEFGHJKLMNPQRSTUVWXYZ'; room = Array.from({ length: 4 }, () => a[Math.random() * a.length | 0]).join(''); try { localStorage.setItem('jj-room', room); } catch (e) {} }
 try { room = localStorage.getItem('jj-room'); } catch (e) {}
 if (!room) newRoom();
-
-function controllerUrl(n) { const u = new URL('controller.html', location.href); u.search = `?room=${room}&p=${n}`; return u.href; }
-function drawQRs() {
-  [1, 2].forEach(n => {
-    const q = qrcode(0, 'M'); q.addData(controllerUrl(n)); q.make();
-    $('qr' + n).innerHTML = q.createSvgTag({ cellSize: 4, margin: 2, scalable: true });
-  });
+function controllerUrl() { const u = new URL('controller.html', location.href); u.search = `?room=${room}`; return u.href; }
+function sendPhone(m) { if (phone && phone.open) { try { phone.send(m); } catch (e) {} } }
+function updatePhoneStatus() {
+  $('phoneSt').className = 'status' + (phone ? ' on' : '');
+  $('phoneSt').textContent = phone ? 'iPhone connected ✓' : 'Scan with the iPhone';
+  $('lobbyHint').innerHTML = phone ? 'Add players on the iPhone, then tap Start' : 'Scan the code with the iPhone · or press <kbd>1</kbd>–<kbd>4</kbd> and <kbd>Enter</kbd>';
 }
-
 function connectPeer() {
-  drawQRs();
+  const q = qrcode(0, 'M'); q.addData(controllerUrl()); q.make();
+  $('qr').innerHTML = q.createSvgTag({ cellSize: 4, margin: 2, scalable: true });
   $('roomLine').textContent = `Connecting… (room ${room})`;
   peer = new Peer('jungle-jump-' + room);
-  peer.on('open', () => { $('roomLine').textContent = `Room ${room} · ${location.host || 'local file'}`; });
+  peer.on('open', () => { $('roomLine').textContent = `Room ${room}`; });
   peer.on('connection', conn => {
-    const idx = conn.metadata && conn.metadata.p == 2 ? 1 : 0, p = players[idx];
     conn.on('open', () => {
-      if (p.conn && p.conn !== conn) { try { p.conn.close(); } catch (e) {} }
-      p.conn = conn; p.connected = true; p.ready = false;
-      conn.send({ t: 'hi', name: p.name, kind: p.kind });
-      updateLobby();
+      if (phone && phone !== conn) { try { phone.close(); } catch (e) {} }
+      phone = conn; updatePhoneStatus();
+      sendPhone({ t: 'roster', players: roster, phase });
+      if (phase === 'turn') sendTurn();
     });
     conn.on('data', d => {
       if (!d || typeof d !== 'object') return;
-      if (d.t === 'r') { p.run = clamp(+d.v || 0, 0, 1); p.lastInput = now(); }
-      else if (d.t === 'j') jump(p);
+      if (d.t === 'r') { me.run = clamp(+d.v || 0, 0, 1); me.lean = clamp(+d.l || 0, -1, 1); me.lastInput = now(); }
+      else if (d.t === 'j') action();
+      else if (d.t === 'roster') setRoster(d.players);
+      else if (d.t === 'start') { if (d.players) setRoster(d.players); newGame(); }
+      else if (d.t === 'lobby') backToLobby();
     });
-    conn.on('close', () => { if (p.conn === conn) { p.conn = null; p.connected = false; updateLobby(); } });
+    conn.on('close', () => { if (phone === conn) { phone = null; updatePhoneStatus(); } });
   });
   peer.on('disconnected', () => { try { peer.reconnect(); } catch (e) {} });
   peer.on('error', e => {
     if (e.type === 'unavailable-id') { peer.destroy(); newRoom(); setTimeout(connectPeer, 300); }
-    else if (e.type === 'network' || e.type === 'server-error' || e.type === 'socket-error') { $('roomLine').textContent = 'No connection to the pairing server. Retrying…'; setTimeout(() => { try { peer.destroy(); } catch (x) {} connectPeer(); }, 3000); }
-  });
-}
-connectPeer();
-
-function updateLobby() {
-  players.forEach((p, i) => {
-    const el = $('st' + (i + 1));
-    el.className = 'status' + (p.ready ? ' ready' : active(p) ? ' on' : '');
-    el.textContent = p.ready ? 'Ready!' : p.connected ? 'Connected · jump when ready' : p.kb ? 'Keyboard · press jump' : 'Scan to join';
+    else if (['network', 'server-error', 'socket-error'].includes(e.type)) { $('roomLine').textContent = 'No connection to the pairing server. Retrying…'; setTimeout(() => { try { peer.destroy(); } catch (x) {} connectPeer(); }, 3000); }
   });
 }
 
 // ---------- update ----------
-function updatePlayer(p, dt, t) {
-  // keyboard run input
-  if (p.kb && keys[p.i ? 'ArrowRight' : 'KeyD']) { p.run = 1; p.lastInput = t; }
-  if (t - p.lastInput > .5) p.run *= Math.exp(-dt * 4);
-
-  if (phase !== 'race' || !p.inRace) return;
-  const done = p.finished !== null;
-  p.stumble = Math.max(0, p.stumble - dt);
-  p.flash = Math.max(0, p.flash - dt);
-
-  let target = done ? 0 : p.stumble > 0 ? 0 : p.run * MAXV;
-  p.speed += (target - p.speed) * Math.min(1, dt * (target > p.speed ? 2.5 : 4));
-  if (p.y > 0 && !done) p.speed = Math.max(p.speed, 4);
-
-  // jump
-  if (p.jumpQ > t && p.y === 0 && p.stumble === 0 && !done) { p.vy = JUMPV; p.jumpQ = 0; sfx.jump(); }
-  if (p.y > 0 || p.vy > 0) { p.vy -= GRAV * dt; p.y = Math.max(0, p.y + p.vy * dt); if (p.y === 0) p.vy = 0; }
-
-  p.dist += p.speed * dt;
-  const px = p.dist * PX;
-
-  // obstacles
-  for (const o of course.obstacles) {
-    if (o.hit[p.i]) continue;
-    if (Math.abs(px - o.m * PX) < 26 + o.w / 2 && p.y < o.h - 8) {
-      o.hit[p.i] = true; p.stumble = .9; p.speed = 0; p.flash = .9; sfx.bonk();
-      popups.push({ lane: p.i, m: o.m, y: 150, text: 'Oops!', t });
-    }
-  }
-  // bananas
-  for (const b of course.bananas) {
-    if (b.got[p.i]) continue;
-    if (Math.abs(px - b.m * PX) < 50 && Math.abs(p.y + 60 - b.y) < 70) {
-      b.got[p.i] = true; p.fruit++; sfx.banana();
-      popups.push({ lane: p.i, m: b.m, y: b.y + 40, text: '+1', t });
-    }
-  }
-  if (!done && p.dist >= RACE) {
-    p.finished = raceT; if (firstFinish === null) { firstFinish = t; sfx.win(); }
-    popups.push({ lane: p.i, m: RACE, y: 260, text: firstFinish === t ? 'WINNER!' : 'Finished!', t });
-  }
-}
-
 function update(dt) {
   const t = now();
-  if (phase === 'countdown' && t - phaseT >= 3) { phase = 'race'; phaseT = t; raceT = 0; sfx.go(); }
-  else if (phase === 'countdown') { const s = Math.ceil(3 - (t - phaseT)); if (s !== update.lastS) { update.lastS = s; if (s < 3) sfx.tick(); } }
-  if (phase === 'race') raceT += dt;
-  players.forEach(p => updatePlayer(p, dt, t));
-  if (phase === 'race') {
-    const racers = players.filter(p => p.inRace);
-    if (racers.every(p => p.finished !== null) || (firstFinish !== null && t - firstFinish > 12)) showResults();
-  }
-  popups = popups.filter(p => t - p.t < 1.2);
-}
+  if (keys.ArrowUp || keys.KeyW) { me.run = 1; me.lastInput = t; }
+  if (keys.ArrowLeft || keys.ArrowRight || keys.KeyA || keys.KeyD || !phone) me.lean = (keys.ArrowRight || keys.KeyD ? 1 : 0) - (keys.ArrowLeft || keys.KeyA ? 1 : 0);
+  me.x += (me.lean * LANE - me.x) * Math.min(1, dt * 7);
+  if (t - me.lastInput > .5) me.run *= Math.exp(-dt * 4);
 
-function showResults() {
-  phase = 'results'; phaseT = now();
-  const racers = players.filter(p => p.inRace).sort((a, b) => (a.finished ?? 1e9) - (b.finished ?? 1e9) || b.dist - a.dist);
-  const w = racers[0];
-  $('winner').textContent = racers.length > 1 ? `${w.kind === 'frog' ? '🐸' : '🐒'} ${w.name} wins!` : 'You made it!';
-  $('podium').innerHTML = racers.map(p => `<div>${p.kind === 'frog' ? '🐸' : '🐒'} ${p.name}<b>${p.finished !== null ? p.finished.toFixed(1) + ' s' : Math.round(p.dist) + ' m'}</b>🍌 ${p.fruit} bananas</div>`).join('');
-  $('results').hidden = false;
-  players.forEach(p => p.ready = false);
-}
-
-// ---------- drawing ----------
-function drawBackground(cam) {
-  const sky = ctx.createLinearGradient(0, 0, 0, GROUND);
-  sky.addColorStop(0, '#7fcaf0'); sky.addColorStop(1, '#d6f2dc');
-  ctx.fillStyle = sky; ctx.fillRect(0, 0, W, LANE);
-  // far hills
-  ctx.fillStyle = '#7fb98a'; ctx.beginPath(); ctx.moveTo(0, GROUND);
-  for (let x = 0; x <= W; x += 16) { const k = x + cam * .15; ctx.lineTo(x, 250 + Math.sin(k * .005) * 34 + Math.sin(k * .013) * 16); }
-  ctx.lineTo(W, GROUND); ctx.fill();
-  // jungle trees
-  const sp = 240, pc = cam * .5, i0 = Math.floor(pc / sp) - 1;
-  for (let i = i0; i < i0 + W / sp + 3; i++) {
-    const x = i * sp - pc + hash(i) * 90, h = 150 + hash(i + 9) * 90;
-    ctx.fillStyle = '#5b3a1e'; ctx.fillRect(x - 10, GROUND - h, 20, h);
-    ctx.fillStyle = hash(i + 3) > .5 ? '#2f7d45' : '#3a8f50';
-    [[0, -h, 62], [-46, -h + 22, 46], [46, -h + 18, 48], [0, -h - 40, 44]].forEach(([dx, dy, r]) => { ctx.beginPath(); ctx.arc(x + dx, GROUND + dy, r, 0, 7); ctx.fill(); });
-    if (hash(i + 5) > .55) { ctx.strokeStyle = '#2b6b3b'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(x + 30, GROUND - h + 10); ctx.quadraticCurveTo(x + 40, GROUND - h + 80, x + 28, GROUND - h + 130); ctx.stroke(); }
-  }
-  // ground
-  ctx.fillStyle = '#8a5a2b'; ctx.fillRect(0, GROUND, W, LANE - GROUND);
-  ctx.fillStyle = '#4caf50'; ctx.fillRect(0, GROUND - 6, W, 18);
-  const gs = 70, g0 = Math.floor(cam / gs);
-  for (let i = g0; i < g0 + W / gs + 2; i++) {
-    const x = i * gs - cam;
-    ctx.fillStyle = '#4caf50'; ctx.beginPath(); ctx.moveTo(x, GROUND + 12); ctx.lineTo(x + 10, GROUND - 14 - hash(i) * 10); ctx.lineTo(x + 20, GROUND + 12); ctx.fill();
-    if (hash(i + 2) > .6) { ctx.fillStyle = '#6e4622'; ctx.beginPath(); ctx.ellipse(x + 35, GROUND + 50 + hash(i) * 20, 10, 6, 0, 0, 7); ctx.fill(); }
-  }
-}
-
-function drawFinish(cam) {
-  const x = RACE * PX - cam;
-  if (x < -300 || x > W + 300) return;
-  // waterfall behind the finish
-  ctx.fillStyle = '#6b7f86'; ctx.fillRect(x + 80, 60, 260, GROUND - 60);
-  ctx.fillStyle = '#9fe0ff';
-  ctx.fillRect(x + 110, 60, 200, GROUND - 60);
-  ctx.fillStyle = 'rgba(255,255,255,.6)';
-  for (let k = 0; k < 6; k++) { const yy = ((performance.now() / 4 + k * 60) % (GROUND - 60)) + 60; ctx.fillRect(x + 120 + k * 30, yy, 8, 40); }
-  // flag poles + checkered banner
-  ctx.fillStyle = '#5b3a1e'; ctx.fillRect(x - 6, GROUND - 220, 12, 220); ctx.fillRect(x + 54, GROUND - 220, 12, 220);
-  for (let r = 0; r < 3; r++) for (let c = 0; c < 6; c++) { ctx.fillStyle = (r + c) % 2 ? '#222' : '#fff'; ctx.fillRect(x - 6 + c * 12, GROUND - 220 + r * 12, 12, 12); }
-}
-
-function drawObstacle(o, x) {
-  if (o.type === 'log') {
-    ctx.fillStyle = '#7a4a22'; roundRect(x - o.w / 2, GROUND - o.h, o.w, o.h, 14); ctx.fill();
-    ctx.fillStyle = '#c99a63'; ctx.beginPath(); ctx.ellipse(x + o.w / 2 - 10, GROUND - o.h / 2, 12, o.h / 2 - 3, 0, 0, 7); ctx.fill();
-    ctx.strokeStyle = '#8a5a2b'; ctx.lineWidth = 3; ctx.beginPath(); ctx.ellipse(x + o.w / 2 - 10, GROUND - o.h / 2, 6, o.h / 4, 0, 0, 7); ctx.stroke();
-  } else {
-    ctx.fillStyle = '#8d8f94'; ctx.beginPath();
-    ctx.moveTo(x - o.w / 2, GROUND); ctx.lineTo(x - o.w / 2 + 8, GROUND - o.h * .7); ctx.lineTo(x - 6, GROUND - o.h); ctx.lineTo(x + o.w / 2 - 6, GROUND - o.h * .75); ctx.lineTo(x + o.w / 2, GROUND); ctx.fill();
-    ctx.fillStyle = '#a9abb0'; ctx.beginPath(); ctx.moveTo(x - 6, GROUND - o.h); ctx.lineTo(x + 10, GROUND - o.h * .6); ctx.lineTo(x - o.w / 2 + 8, GROUND - o.h * .7); ctx.fill();
-  }
-}
-
-function drawBanana(x, y) {
-  ctx.save(); ctx.translate(x, GROUND - y); ctx.rotate(-.4);
-  ctx.fillStyle = '#ffd23f'; ctx.strokeStyle = '#a3761a'; ctx.lineWidth = 3;
-  ctx.beginPath(); ctx.arc(0, -18, 22, .3, Math.PI - .3); ctx.arc(0, -30, 26, Math.PI - .45, .45, true); ctx.closePath(); ctx.fill(); ctx.stroke();
-  ctx.restore();
-}
-
-function roundRect(x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
-
-function limb(x1, y1, x2, y2, w, c) { ctx.strokeStyle = c; ctx.lineWidth = w; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); }
-
-function drawMonkey(phase, air) {
-  const s = air ? .7 : Math.sin(phase), fur = '#8b5a2b', skin = '#efcfa6';
-  ctx.strokeStyle = '#6b3e1f'; ctx.lineWidth = 9; ctx.lineCap = 'round';
-  ctx.beginPath(); ctx.moveTo(-18, -42); ctx.quadraticCurveTo(-62, -48, -56, -86); ctx.quadraticCurveTo(-50, -106, -34, -96); ctx.stroke();
-  limb(-8, -30, -8 + s * 16, -2, 11, '#6b3e1f');
-  limb(8, -30, 8 - s * 16, -2, 11, fur);
-  limb(-4, -60, -18 - s * 14, -36, 9, '#6b3e1f');
-  ctx.fillStyle = fur; ctx.beginPath(); ctx.ellipse(0, -50, 25, 29, 0, 0, 7); ctx.fill();
-  ctx.fillStyle = skin; ctx.beginPath(); ctx.ellipse(5, -46, 14, 19, 0, 0, 7); ctx.fill();
-  limb(4, -60, 22 + s * 14, -38, 9, fur);
-  ctx.fillStyle = fur; ctx.beginPath(); ctx.arc(-14, -98, 10, 0, 7); ctx.arc(30, -98, 10, 0, 7); ctx.fill();
-  ctx.beginPath(); ctx.arc(8, -94, 26, 0, 7); ctx.fill();
-  ctx.fillStyle = skin; ctx.beginPath(); ctx.arc(-14, -98, 5, 0, 7); ctx.arc(30, -98, 5, 0, 7); ctx.fill();
-  ctx.beginPath(); ctx.ellipse(12, -88, 18, 15, 0, 0, 7); ctx.fill();
-  ctx.fillStyle = '#1b1b1b'; ctx.beginPath(); ctx.arc(6, -95, 3.6, 0, 7); ctx.arc(19, -95, 3.6, 0, 7); ctx.fill();
-  ctx.strokeStyle = '#1b1b1b'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(13, -86, 7, .2, Math.PI - .2); ctx.stroke();
-}
-
-function drawFrog(phase, air) {
-  const s = air ? 1 : Math.abs(Math.sin(phase)), g = '#3f9e4d', light = '#cde8a8';
-  limb(-14, -24, -26 - s * 10, -2, 12, '#2f7d3b'); limb(-26 - s * 10, -2, -6, -2, 10, '#2f7d3b');
-  ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(0, -42, 34, 30, 0, 0, 7); ctx.fill();
-  ctx.fillStyle = light; ctx.beginPath(); ctx.ellipse(8, -34, 20, 18, 0, 0, 7); ctx.fill();
-  limb(14, -24, 26 + s * 10, -2, 12, g); limb(26 + s * 10, -2, 40, -2, 10, g);
-  limb(18, -44, 34, -26 + s * 6, 9, g);
-  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(-6, -72, 14, 0, 7); ctx.arc(22, -72, 14, 0, 7); ctx.fill();
-  ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(-6, -73, 9, 0, 7); ctx.arc(22, -73, 9, 0, 7); ctx.fill();
-  ctx.fillStyle = '#1b1b1b'; ctx.beginPath(); ctx.arc(-3, -73, 4.5, 0, 7); ctx.arc(25, -73, 4.5, 0, 7); ctx.fill();
-  ctx.strokeStyle = '#1f5c2a'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(10, -52, 14, .3, Math.PI - .3); ctx.stroke();
-}
-
-function drawPlayer(p, t) {
-  const x = PLAYER_X, by = GROUND - p.y;
-  ctx.fillStyle = 'rgba(0,0,0,.18)'; ctx.beginPath(); ctx.ellipse(x, GROUND + 4, 34 - Math.min(p.y, 150) / 10, 8, 0, 0, 7); ctx.fill();
-  ctx.save(); ctx.translate(x, by);
-  if (p.stumble > 0) ctx.rotate(-.35 * Math.sin(p.stumble * 12));
-  if (p.flash > 0 && Math.sin(t * 40) > 0) ctx.globalAlpha = .45;
-  ctx.scale(1.25, 1.25);
-  (p.kind === 'frog' ? drawFrog : drawMonkey)(p.dist * 1.1, p.y > 0);
-  ctx.restore();
-  if (p.stumble > 0) for (let k = 0; k < 3; k++) { const a = t * 6 + k * 2.1; ctx.fillStyle = '#ffd23f'; ctx.font = '28px sans-serif'; ctx.fillText('★', x - 10 + Math.cos(a) * 34, by - 150 + Math.sin(a) * 10); }
-}
-
-function drawHud(p, other, t) {
-  // progress track with both racers
-  const x0 = 520, x1 = W - 120, y = 44;
-  ctx.fillStyle = 'rgba(15,42,29,.55)'; roundRect(x0 - 20, y - 22, x1 - x0 + 40, 44, 22); ctx.fill();
-  ctx.fillStyle = 'rgba(255,255,255,.25)'; ctx.fillRect(x0, y - 3, x1 - x0, 6);
-  ctx.font = '30px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText('🏁', x1 + 2, y);
-  if (other.inRace) { ctx.globalAlpha = .5; ctx.fillText(other.kind === 'frog' ? '🐸' : '🐒', x0 + (x1 - x0) * clamp(other.dist / RACE, 0, 1), y); ctx.globalAlpha = 1; }
-  ctx.fillText(p.kind === 'frog' ? '🐸' : '🐒', x0 + (x1 - x0) * clamp(p.dist / RACE, 0, 1), y);
-  // name + bananas
-  ctx.textAlign = 'left'; ctx.fillStyle = 'rgba(15,42,29,.55)'; roundRect(24, 22, 440, 46, 23); ctx.fill();
-  ctx.fillStyle = '#fff8e7'; ctx.font = '700 30px "Baloo 2", sans-serif';
-  ctx.fillText(`${p.name}  ·  🍌 ${p.fruit}  ·  ${Math.min(RACE, Math.round(p.dist))} m`, 44, 46);
-  // effort meter (how hard they're running)
-  const mh = 200, mx = W - 60, my = 110;
-  ctx.fillStyle = 'rgba(15,42,29,.55)'; roundRect(mx - 18, my, 36, mh, 18); ctx.fill();
-  const lv = clamp(p.run, 0, 1); ctx.fillStyle = lv > .7 ? '#ffd23f' : '#7ee08a';
-  roundRect(mx - 12, my + 6 + (mh - 12) * (1 - lv), 24, (mh - 12) * lv, 12); ctx.fill();
-  ctx.textAlign = 'center'; ctx.font = '700 20px "Baloo 2", sans-serif'; ctx.fillStyle = '#fff8e7'; ctx.fillText('RUN', mx, my + mh + 20);
-}
-
-function drawLane(p, other, t) {
-  ctx.save(); ctx.translate(0, p.i * LANE);
-  ctx.beginPath(); ctx.rect(0, 0, W, LANE); ctx.clip();
-  const cam = (p.dist || 0) * PX - PLAYER_X;
-  drawBackground(cam);
-  drawFinish(cam);
-  if (course) {
-    for (const o of course.obstacles) { const x = o.m * PX - cam; if (x > -100 && x < W + 100) drawObstacle(o, x); }
-    for (const b of course.bananas) { if (b.got[p.i]) continue; const x = b.m * PX - cam; if (x > -50 && x < W + 50) drawBanana(x, b.y + Math.sin(t * 4 + b.m) * 6); }
-  }
-  drawPlayer(p, t);
-  for (const pu of popups) if (pu.lane === p.i) {
-    const k = (t - pu.t) / 1.2; ctx.globalAlpha = 1 - k; ctx.fillStyle = '#fff8e7'; ctx.strokeStyle = '#0f2a1d'; ctx.lineWidth = 6;
-    ctx.font = '800 54px "Baloo 2", sans-serif'; ctx.textAlign = 'center';
-    const x = pu.m * PX - cam, y = GROUND - pu.y - k * 60; ctx.strokeText(pu.text, x, y); ctx.fillText(pu.text, x, y); ctx.globalAlpha = 1;
-  }
-  if (phase !== 'lobby') drawHud(p, other, t);
-  if ((phase === 'race' || phase === 'countdown') && !p.inRace) {
-    ctx.fillStyle = 'rgba(15,42,29,.7)'; ctx.fillRect(0, 0, W, LANE);
-    ctx.fillStyle = '#fff8e7'; ctx.font = '700 48px "Baloo 2", sans-serif'; ctx.textAlign = 'center';
-    ctx.fillText(`${p.name} is sitting this one out`, W / 2, LANE / 2);
-  }
-  ctx.restore();
-}
-
-function draw(t) {
-  ctx.clearRect(0, 0, W, H);
-  drawLane(players[0], players[1], t);
-  drawLane(players[1], players[0], t);
-  // vine divider
-  ctx.fillStyle = '#1f5c3a'; ctx.fillRect(0, LANE - 6, W, 12);
-  for (let x = 0; x < W; x += 60) { ctx.fillStyle = '#3a8f50'; ctx.beginPath(); ctx.ellipse(x + 30, LANE, 18, 8, (x / 60) % 2 ? .5 : -.5, 0, 7); ctx.fill(); }
   if (phase === 'countdown') {
     const s = Math.ceil(3 - (t - phaseT));
-    ctx.fillStyle = '#ffd23f'; ctx.strokeStyle = '#0f2a1d'; ctx.lineWidth = 14; ctx.font = '800 260px "Baloo 2", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.strokeText(s, W / 2, H / 2); ctx.fillText(s, W / 2, H / 2);
-  } else if (phase === 'race' && t - phaseT < .8) {
-    ctx.globalAlpha = 1 - (t - phaseT) / .8; ctx.fillStyle = '#ffd23f'; ctx.strokeStyle = '#0f2a1d'; ctx.lineWidth = 14;
-    ctx.font = '800 240px "Baloo 2", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.strokeText('GO!', W / 2, H / 2); ctx.fillText('GO!', W / 2, H / 2); ctx.globalAlpha = 1;
+    if (s !== update.lastS) { update.lastS = s; if (s > 0 && s < 3) sfx.tick(); }
+    if (t - phaseT >= 3) { phase = 'run'; phaseT = t; sfx.go(); }
   }
+  popups = popups.filter(p => t - p.t < 1.2);
+  if (phase !== 'run') { if (phase === 'lobby' || phase === 'turn') idleRun(dt); return; }
+
+  me.time += dt;
+  if (me.time >= RUN_TIME) { phase = 'end'; phaseT = t; endRun(); return; }
+  me.stumble = Math.max(0, me.stumble - dt);
+  me.shake = Math.max(0, me.shake - dt);
+  me.splash = Math.max(0, me.splash - dt);
+
+  const target = me.stumble > 0 ? 0 : me.run * MAXV * (me.splash > 0 ? .35 : 1);
+  me.speed += (target - me.speed) * Math.min(1, dt * (target > me.speed ? 2.2 : 4));
+  physics(dt, t);
+
+  const before = me.dist;
+  me.dist += me.speed * dt;
+  for (const it of course) {
+    if (it.done || it.z > me.dist + .3 || it.z < before - 1) continue;
+    if (it.type === 'log') {
+      it.done = true;
+      if (me.h < LOG_H - .1) bump();
+      else popup('Great jump!', '#7ee08a');
+    } else if (it.type === 'bush') {
+      it.done = true;
+      if (Math.abs(me.x - it.side * .85) < .95) bump();
+      else popup('Good dodge!', '#7ee08a');
+    } else if (it.type === 'puddle' && it.z <= me.dist) {
+      it.done = true;
+      if (me.h < .15) { me.splash = 1.2; sfx.splash(); popup('Splash!', '#9fe0ff'); }
+    } else if (it.type === 'banana' && it.z <= me.dist) {
+      it.done = true;
+      if ((it.h < .8 || me.h > .45) && Math.abs(me.x - it.x) < .75) { me.fruit++; sfx.banana(); popup('+1 🍌', '#ffd23f'); }
+    }
+  }
+}
+function physics(dt, t) {
+  if (me.h > 0) me.speed = Math.max(me.speed, phase === 'run' ? 3 : 0);
+  if (me.jumpQ > t && me.h === 0 && me.stumble === 0) { me.vh = JUMPV; me.jumpQ = 0; sfx.jump(); }
+  if (me.h > 0 || me.vh > 0) { me.vh -= GRAV * dt; me.h = Math.max(0, me.h + me.vh * dt); if (me.h === 0) me.vh = 0; }
+}
+// before a run starts the runner can already jog and jump in place, so kids can try the motion
+function idleRun(dt) {
+  const t = now();
+  me.speed = me.run * 2.5; me.dist += me.speed * dt;
+  physics(dt, t);
+}
+// bumps are gentle: the kids slow down for a moment but never stop the game
+function bump() { me.stumble = .5; me.speed *= .3; me.shake = .4; sfx.bonk(); popup('Oops!'); sendPhone({ t: 'bump' }); }
+function popup(text, color = '#fff8e7') { popups.push({ text, color, t: now() }); }
+
+// ---------- 3D projection ----------
+let camH = EYE, camX = 0, camZ = 0;
+function proj(x, y, wz) { const z = wz - camZ, s = FOCAL / z; return [W / 2 + (x - camX) * s, HORIZON + (camH - y) * s, s, z]; }
+const fogAlpha = z => clamp((FAR - z) / 18, 0, 1);
+
+function drawSky() {
+  const g = ctx.createLinearGradient(0, 0, 0, HORIZON + 40);
+  g.addColorStop(0, '#5fb6e8'); g.addColorStop(1, '#cdeedd');
+  ctx.fillStyle = g; ctx.fillRect(-200, -200, W + 400, HORIZON + 240);
+  ctx.fillStyle = '#5d9c6b'; ctx.beginPath(); ctx.moveTo(-200, HORIZON + 4);
+  for (let x = -200; x <= W + 200; x += 20) ctx.lineTo(x, HORIZON - 40 - Math.abs(Math.sin(x * .011)) * 50 - Math.sin(x * .031) * 14);
+  ctx.lineTo(W + 200, HORIZON + 4); ctx.fill();
+  ctx.fillStyle = '#3f8f45'; ctx.fillRect(-200, HORIZON, W + 400, H - HORIZON + 200);
+}
+
+function drawGround() {
+  const seg = 2, k0 = Math.floor(camZ / seg);
+  for (let k = k0 + Math.ceil(FAR / seg); k >= k0; k--) {
+    const z0 = Math.max(camZ + .4, k * seg), z1 = (k + 1) * seg;
+    if (z1 <= camZ + .4) continue;
+    const [lxN, yN] = proj(-PATH, 0, z0), [rxN] = proj(PATH, 0, z0), [lxF, yF] = proj(-PATH, 0, z1), [rxF] = proj(PATH, 0, z1);
+    const even = k % 2 === 0;
+    ctx.fillStyle = even ? '#45994b' : '#3c8b43';
+    ctx.fillRect(-200, yF, W + 400, yN - yF + 1);
+    ctx.fillStyle = even ? '#a8743f' : '#9a6837';
+    quad(lxN, rxN, yN, lxF, rxF, yF);
+    ctx.fillStyle = '#7a5129';
+    const [elN] = proj(-PATH - .12, 0, z0), [elF] = proj(-PATH - .12, 0, z1), [erN] = proj(PATH + .12, 0, z0), [erF] = proj(PATH + .12, 0, z1);
+    quad(elN, lxN, yN, elF, lxF, yF); quad(rxN, erN, yN, rxF, erF, yF);
+  }
+  const fg = ctx.createLinearGradient(0, HORIZON, 0, HORIZON + 70);
+  fg.addColorStop(0, 'rgba(205,238,221,.9)'); fg.addColorStop(1, 'rgba(205,238,221,0)');
+  ctx.fillStyle = fg; ctx.fillRect(-200, HORIZON, W + 400, 70);
+}
+function quad(x1, x2, yN, x3, x4, yF) { ctx.beginPath(); ctx.moveTo(x1, yN); ctx.lineTo(x2, yN); ctx.lineTo(x4, yF); ctx.lineTo(x3, yF); ctx.fill(); }
+
+// scenery along both sides, generated from its index so it never changes
+function scenery() {
+  const list = [], sp = 3.2, i0 = Math.floor(camZ / sp);
+  for (let i = i0; i < i0 + FAR / sp + 1; i++) {
+    for (const sd of [-1, 1]) {
+      const id = i * 2 + (sd > 0 ? 1 : 0), wz = i * sp + hash(id) * 2, z = wz - camZ;
+      if (z < .8 || z > FAR) continue;
+      const tree = hash(id + 7) < .6;
+      list.push({ z, draw: () => tree ? drawTree(sd * (2.8 + hash(id + 3) * 3), wz, id, sd) : drawBush(sd * (2.2 + hash(id + 3) * 1.2), wz, id) });
+    }
+  }
+  return list;
+}
+
+function drawTree(x, wz, id, sd) {
+  const h = 4 + hash(id + 11) * 3, [tx, ty, s, z] = proj(x, 0, wz), [, topY] = proj(x, h, wz);
+  ctx.globalAlpha = fogAlpha(z);
+  ctx.fillStyle = '#5b3a1e'; ctx.fillRect(tx - .18 * s, topY, .36 * s, ty - topY);
+  ctx.fillStyle = hash(id + 4) > .5 ? '#2f7d45' : '#3a8f50';
+  [[0, 0, 1.6], [-1.1, -.5, 1.1], [1.1, -.4, 1.2], [0, .9, 1.1]].forEach(([dx, dy, r]) => { const [cx, cy] = proj(x + dx, h + dy, wz); ctx.beginPath(); ctx.arc(cx, cy, r * s, 0, 7); ctx.fill(); });
+  if (hash(id + 5) > .5) { const [vx, vy] = proj(x - sd, h - .3, wz); ctx.strokeStyle = '#2b6b3b'; ctx.lineWidth = Math.max(1, .08 * s); ctx.beginPath(); ctx.moveTo(vx, vy); ctx.quadraticCurveTo(vx + .2 * s, vy + 1.2 * s, vx - .1 * s, vy + 2.2 * s); ctx.stroke(); }
+  ctx.globalAlpha = 1;
+}
+
+function drawBush(x, wz, id) {
+  const [bx, by, s, z] = proj(x, 0, wz);
+  ctx.globalAlpha = fogAlpha(z);
+  ctx.fillStyle = hash(id + 2) > .5 ? '#2e7a3e' : '#3d9450';
+  [[-.4, .35, .5], [.3, .4, .55], [0, .7, .5]].forEach(([dx, dy, r]) => { ctx.beginPath(); ctx.arc(bx + dx * s, by - dy * s, r * s, 0, 7); ctx.fill(); });
+  if (hash(id + 9) > .6) { ctx.fillStyle = '#ff6b6b'; ctx.beginPath(); ctx.arc(bx + .1 * s, by - .8 * s, .09 * s, 0, 7); ctx.fill(); }
+  ctx.globalAlpha = 1;
+}
+
+function drawLog(wz) {
+  const [lx, yb, s, z] = proj(-PATH - .1, 0, wz), [rx] = proj(PATH + .1, 0, wz), [, yt] = proj(0, LOG_H, wz);
+  const [lxB, ytB] = proj(-PATH - .1, LOG_H, wz + .4), [rxB] = proj(PATH + .1, LOG_H, wz + .4);
+  ctx.globalAlpha = fogAlpha(z);
+  ctx.fillStyle = '#8f5a2a'; quad(lx, rx, yt, lxB, rxB, ytB);
+  ctx.fillStyle = '#7a4a22'; ctx.fillRect(lx, yt, rx - lx, yb - yt);
+  ctx.strokeStyle = '#5e3818'; ctx.lineWidth = Math.max(1, .03 * s);
+  for (let k = 1; k < 4; k++) { const yy = yt + (yb - yt) * k / 4; ctx.beginPath(); ctx.moveTo(lx + .1 * s, yy); ctx.lineTo(rx - .1 * s, yy); ctx.stroke(); }
+  ctx.fillStyle = '#d1a36d'; ctx.beginPath(); ctx.ellipse(lx, (yt + yb) / 2, .14 * s, (yb - yt) / 2, 0, 0, 7); ctx.ellipse(rx, (yt + yb) / 2, .14 * s, (yb - yt) / 2, 0, 0, 7); ctx.fill();
+  ctx.globalAlpha = 1;
+}
+
+// a big bush covering one half of the path: lean to the other side
+function drawThicket(it) {
+  const c = it.side * .85, [, , , z] = proj(c, 0, it.z);
+  ctx.globalAlpha = fogAlpha(z);
+  [[-.75, .45, .55], [.75, .45, .55], [-.35, .75, .6], [.35, .8, .6], [0, 1.1, .5], [-.8, .9, .4], [.8, .9, .4]].forEach(([dx, dy, r], i) => {
+    const [x, y, s] = proj(c + dx, dy, it.z);
+    ctx.fillStyle = i % 2 ? '#2b7a3a' : '#35914a'; ctx.beginPath(); ctx.arc(x, y, r * s, 0, 7); ctx.fill();
+  });
+  [[-.5, .9], [.4, 1.2], [.1, .5], [-.2, 1.3]].forEach(([dx, dy]) => { const [x, y, s] = proj(c + dx, dy, it.z); ctx.fillStyle = '#ff7eb6'; ctx.beginPath(); ctx.arc(x, y, .09 * s, 0, 7); ctx.fill(); });
+  ctx.globalAlpha = 1;
+}
+
+function drawPuddle(wz) {
+  const [lx, yN, , z] = proj(-1.4, 0, wz - .2), [rx] = proj(1.4, 0, wz - .2), [, yF] = proj(0, 0, wz + 1.4);
+  ctx.globalAlpha = fogAlpha(z) * .9;
+  ctx.fillStyle = '#5aa9d6'; ctx.beginPath(); ctx.ellipse((lx + rx) / 2, (yN + yF) / 2, (rx - lx) / 2, Math.max(2, (yN - yF) / 2), 0, 0, 7); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,.5)'; ctx.beginPath(); ctx.ellipse((lx + rx) / 2 - (rx - lx) * .15, (yN + yF) / 2 - (yN - yF) * .1, (rx - lx) * .15, Math.max(1, (yN - yF) * .1), 0, 0, 7); ctx.fill();
+  ctx.globalAlpha = 1;
+}
+
+function drawBanana(it, t) {
+  const [bx, by, s, z] = proj(it.x, it.h + Math.sin(t * 4 + it.z) * .05, it.z), r = .22 * s;
+  ctx.globalAlpha = fogAlpha(z);
+  ctx.save(); ctx.translate(bx, by); ctx.rotate(-.4 + Math.sin(t * 3 + it.z) * .2);
+  ctx.fillStyle = '#ffd23f'; ctx.strokeStyle = '#a3761a'; ctx.lineWidth = Math.max(1, r * .12);
+  ctx.beginPath(); ctx.arc(0, -r * .7, r, .3, Math.PI - .3); ctx.arc(0, -r * 1.2, r * 1.2, Math.PI - .45, .45, true); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.restore(); ctx.globalAlpha = 1;
+}
+
+// ---------- the runner, seen from behind ----------
+function blob(x, y, rx, ry, color, rot = 0) { ctx.fillStyle = color; ctx.beginPath(); ctx.ellipse(x, y, rx, ry, rot, 0, 7); ctx.fill(); }
+function drawRunner(t) {
+  const p = runner(), kind = p.animal;
+  // the child's own animal sits in the corner and copies every jump and lean
+  const u = 1.7, gx = 230 + me.x * 40, gy = H - 60, ax = gx, ay = gy - me.h * 200;
+  ctx.fillStyle = 'rgba(15,42,29,.45)'; ctx.beginPath(); ctx.ellipse(230, H - 40, 190, 60, 0, 0, 7); ctx.fill();
+  const step = me.dist * 2.2, air = me.h > 0;
+  const legA = air ? -6 : Math.sin(step) * 9, legB = air ? -6 : -Math.sin(step) * 9;
+  const bounce = air ? 0 : Math.abs(Math.sin(step)) * 4 * (me.speed / MAXV);
+  const tilt = me.stumble > 0 ? Math.sin(me.stumble * 14) * .25 : 0;
+
+  // shadow stays on the ground and shrinks as the runner rises
+  blob(gx, gy, (38 - me.h * 14) * u, (9 - me.h * 3) * u, 'rgba(0,0,0,.22)');
+
+  ctx.save(); ctx.translate(ax, ay - bounce * u); ctx.rotate(tilt + me.x * .15); ctx.scale(u, u);
+  if (me.stumble > 0 && Math.sin(t * 40) > 0) ctx.globalAlpha = .55;
+  const C = {
+    monkey: { body: '#8b5a2b', dark: '#6b3e1f', light: '#efcfa6' },
+    koala:  { body: '#9aa3ab', dark: '#737c84', light: '#f2f2f2' },
+    bear:   { body: '#7a4b2a', dark: '#5a361d', light: '#c49a6c' },
+    lion:   { body: '#e9b44c', dark: '#c98e2b', light: '#b8571f' },
+  }[kind];
+
+  // legs
+  blob(-14, -10 + legA, 9, 14, C.dark); blob(14, -10 + legB, 9, 14, C.dark);
+
+  // tails sit behind the body, so they're drawn first
+  ctx.lineCap = 'round';
+  if (kind === 'monkey') { ctx.strokeStyle = C.dark; ctx.lineWidth = 7; ctx.beginPath(); ctx.moveTo(0, -30); ctx.quadraticCurveTo(26, -10, 30, -40); ctx.quadraticCurveTo(32, -58, 18, -54); ctx.stroke(); }
+  if (kind === 'lion') { ctx.strokeStyle = C.dark; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(0, -28); ctx.quadraticCurveTo(-30, -6, -34, -40); ctx.stroke(); blob(-34, -44, 8, 9, C.light); }
+  if (kind === 'bear') blob(0, -26, 8, 7, C.dark);
+
+  // arms swing opposite to the legs, and go up when jumping
+  const armUp = air ? -22 : 0;
+  blob(-30, -46 - legB * .8 + armUp, 8, 16, C.dark, .3); blob(30, -46 - legA * .8 + armUp, 8, 16, C.dark, -.3);
+
+  // body + head (seen from behind)
+  blob(0, -48, kind === 'bear' ? 31 : 27, 31, C.body);
+  if (kind === 'lion') { for (let a = 0; a < 12; a++) { const r = a / 12 * Math.PI * 2; blob(Math.cos(r) * 24, -94 + Math.sin(r) * 24, 13, 13, C.light); } }
+  blob(0, -92, 25, 24, C.body);
+  if (kind === 'monkey') { blob(-26, -96, 10, 11, C.body); blob(26, -96, 10, 11, C.body); blob(-26, -96, 5, 6, C.light); blob(26, -96, 5, 6, C.light); }
+  if (kind === 'koala') { blob(-28, -104, 17, 16, C.body); blob(28, -104, 17, 16, C.body); blob(-28, -104, 10, 10, C.light); blob(28, -104, 10, 10, C.light); }
+  if (kind === 'bear') { blob(-19, -112, 9, 9, C.body); blob(19, -112, 9, 9, C.body); blob(-19, -112, 4.5, 4.5, C.light); blob(19, -112, 4.5, 4.5, C.light); }
+  if (kind === 'lion') { blob(-16, -112, 7, 7, C.body); blob(16, -112, 7, 7, C.body); }
+  ctx.restore();
+
+  // little stars when bumping
+  if (me.stumble > 0) for (let k = 0; k < 3; k++) {
+    const a = t * 6 + k * 2.1; ctx.fillStyle = '#ffd23f'; ctx.font = `${Math.round(30 * u)}px sans-serif`; ctx.textAlign = 'center';
+    ctx.fillText('★', ax + Math.cos(a) * 40 * u, ay - 140 * u + Math.sin(a) * 10 * u);
+  }
+}
+
+function drawHud(t) {
+  const p = runner();
+  ctx.textBaseline = 'middle';
+  const left = Math.max(0, RUN_TIME - me.time);
+  ctx.font = '800 64px "Baloo 2", sans-serif';
+  pill(W / 2 - 130, 30, 260, 96);
+  ctx.textAlign = 'center'; ctx.fillStyle = left < 10 ? '#ffd23f' : '#fff8e7';
+  ctx.fillText(phase === 'countdown' ? RUN_TIME + 's' : Math.ceil(left) + 's', W / 2, 80);
+  ctx.font = '700 46px "Baloo 2", sans-serif';
+  const label = `${ANIMALS[p.animal].emoji} ${p.name} · ${Math.round(me.dist)} m`;
+  const lw = Math.max(380, ctx.measureText(label).width + 70);
+  pill(30, 36, lw, 84); ctx.textAlign = 'left'; ctx.fillStyle = '#fff8e7'; ctx.fillText(label, 62, 80);
+  pill(W - 300, 36, 270, 84); ctx.textAlign = 'right'; ctx.fillText(`🍌 ${me.fruit}`, W - 60, 80);
+  // effort meter: how hard the runner is running on the spot
+  const mh = 340, mx = 70, my = 200;
+  pill(mx - 26, my, 52, mh);
+  const lv = clamp(me.run, 0, 1); ctx.fillStyle = lv > .7 ? '#ffd23f' : '#7ee08a';
+  ctx.fillRect(mx - 16, my + 10 + (mh - 20) * (1 - lv), 32, (mh - 20) * lv);
+  ctx.font = '700 28px "Baloo 2", sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = '#fff8e7'; ctx.fillText('RUN', mx, my + mh + 30);
+  // big prompt for the next thing to do
+  const next = course.find(it => (it.type === 'log' || it.type === 'bush') && !it.done && it.z > me.dist);
+  if (phase === 'run' && next && (next.z - me.dist) / Math.max(me.speed, 1.5) < 1.6) {
+    ctx.font = '800 120px "Baloo 2", sans-serif'; ctx.textAlign = 'center';
+    ctx.globalAlpha = .65 + .35 * Math.sin(t * 16);
+    if (next.type === 'log') { if (me.h === 0) outlined('⬆ JUMP!', W / 2, H * .28, '#ffd23f'); }
+    else outlined(next.side > 0 ? '⬅ LEAN LEFT' : 'LEAN RIGHT ➡', W / 2 + (next.side > 0 ? -300 : 300), H * .28, '#ffd23f');
+    ctx.globalAlpha = 1;
+  }
+}
+function pill(x, y, w, h) { ctx.fillStyle = 'rgba(15,42,29,.6)'; ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, y, w, h, h / 2) : ctx.rect(x, y, w, h); ctx.fill(); }
+function outlined(text, x, y, color) { ctx.strokeStyle = '#0f2a1d'; ctx.lineWidth = 14; ctx.lineJoin = 'round'; ctx.strokeText(text, x, y); ctx.fillStyle = color; ctx.fillText(text, x, y); }
+
+function draw(t) {
+  // first-person: the camera is the runner's eyes, so it bobs, leans and jumps with them
+  camZ = me.dist;
+  camH = EYE + me.h + Math.abs(Math.sin(me.dist * 2.2)) * .05 * (me.speed / MAXV);
+  camX = me.x + (me.shake > 0 ? Math.sin(t * 60) * .08 * me.shake : 0);
+
+  drawSky(); drawGround();
+  const objs = scenery();
+  for (const it of course) {
+    if (it.done && it.type === 'banana') continue;
+    const z = it.z - camZ;
+    if (z < .5 || z > FAR) continue;
+    const fn = { log: () => drawLog(it.z), bush: () => drawThicket(it), puddle: () => drawPuddle(it.z), banana: () => drawBanana(it, t) }[it.type];
+    objs.push({ z: it.type === 'puddle' ? z + 100 : z, draw: fn });
+  }
+  objs.sort((a, b) => b.z - a.z).forEach(o => o.draw());
+
+  if (me.splash > 0) { ctx.fillStyle = `rgba(90,169,214,${me.splash * .25})`; ctx.fillRect(0, 0, W, H); }
+  if (me.shake > 0) { ctx.fillStyle = `rgba(255,90,90,${me.shake * .35})`; ctx.fillRect(0, 0, W, H); }
+  if (phase === 'run' || phase === 'countdown' || phase === 'end' || phase === 'between') drawHud(t);
+  if (phase !== 'lobby' && phase !== 'results') drawRunner(t);
+
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  popups.forEach((p, i) => { const k = (now() - p.t) / 1.2; ctx.globalAlpha = 1 - k; ctx.font = '800 90px "Baloo 2", sans-serif'; outlined(p.text, W / 2, H * .3 - k * 80 - i * 10, p.color); ctx.globalAlpha = 1; });
+  if (phase === 'countdown') { ctx.font = '800 280px "Baloo 2", sans-serif'; outlined(Math.ceil(3 - (t - phaseT)), W / 2, H * .42, '#ffd23f'); }
+  else if (phase === 'run' && t - phaseT < .8) { ctx.globalAlpha = 1 - (t - phaseT) / .8; ctx.font = '800 260px "Baloo 2", sans-serif'; outlined('GO!', W / 2, H * .42, '#ffd23f'); ctx.globalAlpha = 1; }
+  else if (phase === 'between' || phase === 'end') { ctx.font = '800 150px "Baloo 2", sans-serif'; outlined(`${points(scores[turnIdx - 1] || me)} points!`, W / 2, H * .42, '#ffd23f'); }
   ctx.textBaseline = 'alphabetic';
 }
 
@@ -468,7 +564,7 @@ function frame() {
   update(dt); draw(t);
   requestAnimationFrame(frame);
 }
-updateLobby();
+renderRoster(); updatePhoneStatus(); resetRun(); connectPeer();
 requestAnimationFrame(frame);
 </script>
 </body>
