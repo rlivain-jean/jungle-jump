@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Jungle Jump Controller</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&display=swap">
+<style>
+  :root {
+    --leaf-deep: #0f2a1d;
+    --leaf: #1f5c3a;
+    --banana: #ffd23f;
+    --cream: #fff8e7;
+    --me: #b5743a;
+    --font: "Baloo 2", "Trebuchet MS", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; background: var(--leaf-deep); color: var(--cream); font-family: var(--font); overscroll-behavior: none; -webkit-user-select: none; user-select: none; touch-action: manipulation; }
+  main { min-height: 100%; display: flex; flex-direction: column; gap: 16px; padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  header h1 { margin: 0; font-size: 28px; line-height: 1.1; }
+  .pill { font-size: 15px; font-weight: 700; padding: 4px 12px; border-radius: 99px; background: rgba(255,255,255,.15); white-space: nowrap; }
+  .pill.ok { background: #49b85a; }
+  .stage { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; text-align: center; }
+  .avatar { font-size: 96px; line-height: 1; transition: transform .15s; }
+  .avatar.hop { transform: translateY(-40px) scale(1.1); }
+  p { margin: 0; font-size: 18px; line-height: 1.4; max-width: 34ch; }
+  .big { font: inherit; font-size: 26px; font-weight: 800; border: 0; border-radius: 24px; padding: 18px 28px; background: var(--banana); color: var(--leaf-deep); width: 100%; max-width: 360px; }
+  .meter { width: 100%; max-width: 360px; height: 26px; border-radius: 13px; background: rgba(255,255,255,.12); overflow: hidden; }
+  .meter i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #7ee08a, var(--banana)); transition: width .08s linear; }
+  .pads { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .pad { font: inherit; font-size: 24px; font-weight: 800; border: 0; border-radius: 24px; height: 110px; color: var(--leaf-deep); background: #7ee08a; touch-action: none; }
+  .pad.jump { background: var(--banana); }
+  .pad:active, .pad.down { filter: brightness(.85); transform: scale(.98); }
+  .sens { display: flex; gap: 8px; justify-content: center; align-items: center; font-size: 15px; }
+  .sens button { font: inherit; font-size: 15px; border: 0; border-radius: 99px; padding: 4px 12px; background: rgba(255,255,255,.12); color: var(--cream); }
+  .sens button[aria-pressed="true"] { background: var(--cream); color: var(--leaf-deep); }
+  form { display: flex; flex-direction: column; gap: 12px; width: 100%; max-width: 360px; }
+  input, select { font: inherit; font-size: 22px; padding: 12px 16px; border-radius: 16px; border: 0; text-transform: uppercase; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1 id="title">Jungle Jump</h1>
+    <span class="pill" id="net">Not connected</span>
+  </header>
+
+  <section class="stage" id="join" hidden>
+    <p>Type the room code shown on the TV.</p>
+    <form id="joinForm">
+      <input id="roomIn" maxlength="4" placeholder="ABCD" autocomplete="off" required>
+      <select id="playerIn"><option value="1">Player 1 · Monkey</option><option value="2">Player 2 · Frog</option></select>
+      <button class="big" type="submit">Join</button>
+    </form>
+  </section>
+
+  <section class="stage" id="stage" hidden>
+    <div class="avatar" id="avatar">🐒</div>
+    <p id="msg">Hold the phone in your hand.<br>Run on the spot to run. Jump to jump!</p>
+    <button class="big" id="startBtn" type="button">Tap to start</button>
+    <div class="meter" id="meterWrap" hidden><i id="meter"></i></div>
+    <div class="sens" id="sens" hidden>Sensitivity
+      <button type="button" data-s="0.75" aria-pressed="false">Low</button>
+      <button type="button" data-s="1" aria-pressed="true">Normal</button>
+      <button type="button" data-s="1.35" aria-pressed="false">High</button>
+    </div>
+  </section>
+
+  <div class="pads" id="pads" hidden>
+    <button class="pad" id="runPad" type="button">Hold to run</button>
+    <button class="pad jump" id="jumpPad" type="button">Jump</button>
+  </div>
+</main>
+
+<script src="vendor/peerjs.min.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const qs = new URLSearchParams(location.search);
+let room = (qs.get('room') || '').toUpperCase();
+let pn = qs.get('p') === '2' ? 2 : 1;
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+function setupPlayer() {
+  const frog = pn === 2;
+  document.documentElement.style.setProperty('--me', frog ? '#49b85a' : '#b5743a');
+  $('title').textContent = frog ? 'Player 2 · Frog' : 'Player 1 · Monkey';
+  $('avatar').textContent = frog ? '🐸' : '🐒';
+}
+
+// ---------- connection ----------
+let peer = null, conn = null, retry = null;
+function setNet(text, ok) { $('net').textContent = text; $('net').className = 'pill' + (ok ? ' ok' : ''); }
+function connect() {
+  clearTimeout(retry);
+  setNet('Connecting…');
+  if (!peer || peer.destroyed) {
+    peer = new Peer();
+    peer.on('open', openConn);
+    peer.on('disconnected', () => { try { peer.reconnect(); } catch (e) {} });
+    peer.on('error', e => {
+      setNet(e.type === 'peer-unavailable' ? 'TV not found' : 'Connection problem');
+      retry = setTimeout(connect, 2500);
+    });
+  } else openConn();
+}
+function openConn() {
+  conn = peer.connect('jungle-jump-' + room, { metadata: { p: pn }, serialization: 'json' });
+  conn.on('open', () => setNet('Connected', true));
+  conn.on('data', d => { if (d && d.t === 'hi') setNet('Connected', true); });
+  conn.on('close', () => { setNet('Reconnecting…'); retry = setTimeout(connect, 1500); });
+}
+function send(msg) { if (conn && conn.open) { try { conn.send(msg); } catch (e) {} } }
+
+// ---------- motion detection ----------
+// Running in place makes the phone shake rhythmically -> we measure how much the
+// acceleration varies over the last 0.8 s. A real jump has a short "free fall"
+// moment where the phone feels almost weightless -> that triggers a jump.
+let sens = 1, level = 0, manualRun = 0, motionSeen = false;
+const buf = [];
+let ffStart = 0, peakAt = 0, lastJump = 0;
+
+function onMotion(e) {
+  const a = e.accelerationIncludingGravity;
+  if (!a || a.x == null) return;
+  motionSeen = true;
+  const t = performance.now();
+  const mag = Math.hypot(a.x, a.y, a.z);
+  buf.push([t, mag]);
+  while (buf.length && t - buf[0][0] > 800) buf.shift();
+  let mean = 0; for (const [, m] of buf) mean += m; mean /= buf.length;
+  let v = 0; for (const [, m] of buf) v += (m - mean) ** 2;
+  const sd = Math.sqrt(v / buf.length);
+  const target = clamp((sd * sens - 1.3) / 5, 0, 1);
+  level += (target - level) * (target > level ? .35 : .08);
+
+  // jump detection
+  if (mag > 22 / sens) peakAt = t;
+  if (mag < 4.5) { if (!ffStart) ffStart = t; } else ffStart = 0;
+  const freefall = ffStart && t - ffStart > 110 / sens;
+  const pushOff = t - peakAt < 300 && mag < 6;
+  if ((freefall || pushOff) && t - lastJump > 650) doJump();
+}
+
+function doJump() {
+  lastJump = performance.now(); ffStart = 0; peakAt = 0;
+  send({ t: 'j' });
+  if (navigator.vibrate) navigator.vibrate(40);
+  $('avatar').classList.add('hop'); setTimeout(() => $('avatar').classList.remove('hop'), 220);
+}
+
+setInterval(() => {
+  const v = Math.max(level, manualRun);
+  $('meter').style.width = Math.round(v * 100) + '%';
+  send({ t: 'r', v: +v.toFixed(2) });
+}, 66);
+
+async function start() {
+  try {
+    if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+      const r = await DeviceMotionEvent.requestPermission();
+      if (r !== 'granted') throw new Error('denied');
+    }
+    addEventListener('devicemotion', onMotion);
+  } catch (e) {
+    $('msg').textContent = 'Motion is off. Use the buttons below, or reload the page and tap “Allow”.';
+  }
+  try { if (navigator.wakeLock) await navigator.wakeLock.request('screen'); } catch (e) {}
+  $('startBtn').hidden = true; $('meterWrap').hidden = false; $('sens').hidden = false; $('pads').hidden = false;
+  setTimeout(() => { if (!motionSeen) $('msg').textContent = 'No motion sensor found. Use the buttons below.'; }, 2500);
+}
+$('startBtn').onclick = start;
+
+document.querySelectorAll('#sens button').forEach(b => b.onclick = () => {
+  sens = +b.dataset.s;
+  document.querySelectorAll('#sens button').forEach(x => x.setAttribute('aria-pressed', x === b));
+});
+
+// fallback buttons
+const runPad = $('runPad');
+runPad.addEventListener('pointerdown', e => { e.preventDefault(); manualRun = 1; runPad.classList.add('down'); });
+['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => runPad.addEventListener(ev, () => { manualRun = 0; runPad.classList.remove('down'); }));
+$('jumpPad').addEventListener('pointerdown', e => { e.preventDefault(); doJump(); });
+
+// keep the wake lock after switching apps
+document.addEventListener('visibilitychange', async () => {
+  if (document.visibilityState === 'visible' && navigator.wakeLock) { try { await navigator.wakeLock.request('screen'); } catch (e) {} }
+});
+
+// ---------- boot ----------
+$('joinForm').onsubmit = e => {
+  e.preventDefault();
+  room = $('roomIn').value.trim().toUpperCase(); pn = +$('playerIn').value;
+  history.replaceState(null, '', `?room=${room}&p=${pn}`);
+  boot();
+};
+function boot() {
+  if (!/^[A-Z]{4}$/.test(room)) { $('join').hidden = false; return; }
+  $('join').hidden = true; $('stage').hidden = false;
+  setupPlayer(); connect();
+}
+boot();
+</script>
+</body>
+</html>
