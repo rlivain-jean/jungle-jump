@@ -15,7 +15,7 @@
     --font: "Baloo 2", "Trebuchet MS", system-ui, sans-serif;
   }
   html, body { margin: 0; height: 100%; background: var(--leaf-deep); overflow: hidden; font-family: var(--font); color: var(--cream); }
-  canvas { display: block; width: 100vw; height: 100vh; object-fit: contain; }
+  canvas { display: block; position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 100vw; height: 56.25vw; }
   .overlay { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2.4vh; background: radial-gradient(ellipse at center, rgba(15,42,29,.74), rgba(15,42,29,.94)); text-align: center; }
   .overlay[hidden] { display: none; }
   h1 { margin: 0; font-size: 10vh; line-height: 1; font-weight: 800; color: var(--banana); text-shadow: 0 .6vh 0 #a3761a; }
@@ -95,6 +95,12 @@ const ANIMALS = {
 
 const cvs = document.getElementById('c');
 const ctx = cvs.getContext('2d');
+// keep the 16:9 picture centred and as big as the screen allows (Safari ignores object-fit on canvas)
+function fitCanvas() {
+  const sc = Math.min(innerWidth / W, innerHeight / H);
+  cvs.style.width = Math.floor(W * sc) + 'px'; cvs.style.height = Math.floor(H * sc) + 'px';
+}
+addEventListener('resize', fitCanvas); document.addEventListener('fullscreenchange', fitCanvas); fitCanvas();
 const $ = id => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const now = () => performance.now() / 1000;
