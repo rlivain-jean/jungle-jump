@@ -84,6 +84,7 @@ const FAR = 70;                // view distance in metres
 const MAXV = 9;                // metres per second at full effort
 const GRAV = 9.8, JUMPV = 4.4; // a jump peaks just under 1 m
 const RUN_TIME = 45;           // seconds per turn
+const VERSION = '5';           // the phone reloads itself when it has an older version
 const LOG_H = 0.45;
 
 const ANIMALS = {
@@ -174,7 +175,7 @@ const me = { x: 0, lean: 0, dist: 0, speed: 0, run: 0, lastInput: 0, h: 0, vh: 0
 const runner = () => roster[turnIdx] || roster[0];
 
 function resetRun() {
-  Object.assign(me, { x: 0, dist: 0, speed: 0, h: 0, vh: 0, stumble: 0, jumpQ: 0, fruit: 0, shake: 0, splash: 0, time: 0 });
+  Object.assign(me, { x: 0, logGrace: 0, dist: 0, speed: 0, h: 0, vh: 0, stumble: 0, jumpQ: 0, fruit: 0, shake: 0, splash: 0, time: 0 });
   course = makeCourse((Math.random() * 1e9) | 0); popups = [];
 }
 const points = s => Math.round(s.dist) + s.fruit * 10;
@@ -214,7 +215,7 @@ function backToLobby() { phase = 'lobby'; showOnly('lobby'); resetRun(); }
 function action() {
   if (phase === 'lobby') newGame();
   else if (phase === 'turn' && now() - phaseT > .8) startCountdown();
-  else if (phase === 'run') me.jumpQ = now() + .25;
+  else if (phase === 'run') me.jumpQ = now() + .35;
   else if (phase === 'results' && now() - phaseT > 2) newGame();
 }
 
@@ -238,7 +239,7 @@ let peer, room, phone = null;
 function newRoom() { const a = 'ABCDEFGHJKLMNPQRSTUVWXYZ'; room = Array.from({ length: 4 }, () => a[Math.random() * a.length | 0]).join(''); try { localStorage.setItem('jj-room', room); } catch (e) {} }
 try { room = localStorage.getItem('jj-room'); } catch (e) {}
 if (!room) newRoom();
-function controllerUrl() { const u = new URL('controller.html', location.href); u.search = `?room=${room}`; return u.href; }
+function controllerUrl() { const u = new URL('controller.html', location.href); u.search = `?room=${room}&v=${VERSION}`; return u.href; }
 function sendPhone(m) { if (phone && phone.open) { try { phone.send(m); } catch (e) {} } }
 function updatePhoneStatus() {
   $('phoneSt').className = 'status' + (phone ? ' on' : '');
@@ -250,12 +251,12 @@ function connectPeer() {
   $('qr').innerHTML = q.createSvgTag({ cellSize: 4, margin: 2, scalable: true });
   $('roomLine').textContent = `Connecting… (room ${room})`;
   peer = new Peer('jungle-jump-' + room);
-  peer.on('open', () => { $('roomLine').textContent = `Room ${room}`; });
+  peer.on('open', () => { $('roomLine').textContent = `Room ${room} · v${VERSION}`; });
   peer.on('connection', conn => {
     conn.on('open', () => {
       if (phone && phone !== conn) { try { phone.close(); } catch (e) {} }
       phone = conn; updatePhoneStatus();
-      sendPhone({ t: 'roster', players: roster, phase });
+      sendPhone({ t: 'roster', players: roster, phase, v: VERSION });
       if (phase === 'turn') sendTurn();
     });
     conn.on('data', d => {
@@ -300,6 +301,7 @@ function update(dt) {
   const target = me.stumble > 0 ? 0 : me.run * MAXV * (me.splash > 0 ? .35 : 1);
   me.speed += (target - me.speed) * Math.min(1, dt * (target > me.speed ? 2.2 : 4));
   physics(dt, t);
+  if (me.logGrace && t > me.logGrace) { me.logGrace = 0; bump(); }
 
   const before = me.dist;
   me.dist += me.speed * dt;
@@ -307,8 +309,8 @@ function update(dt) {
     if (it.done || it.z > me.dist + .3 || it.z < before - 1) continue;
     if (it.type === 'log') {
       it.done = true;
-      if (me.h < LOG_H - .1) bump();
-      else popup('Great jump!', '#7ee08a');
+      if (me.h >= LOG_H - .1 || me.vh > 0) popup('Great jump!', '#7ee08a');
+      else me.logGrace = t + .35;   // a jump arriving a moment late still counts
     } else if (it.type === 'bush') {
       it.done = true;
       if (Math.abs(me.x - it.side * .85) < .95) bump();
@@ -318,13 +320,16 @@ function update(dt) {
       if (me.h < .15) { me.splash = 1.2; sfx.splash(); popup('Splash!', '#9fe0ff'); }
     } else if (it.type === 'banana' && it.z <= me.dist) {
       it.done = true;
-      if ((it.h < .8 || me.h > .45) && Math.abs(me.x - it.x) < .75) { me.fruit++; sfx.banana(); popup('+1 🍌', '#ffd23f'); }
+      if ((it.h < .8 || me.h > .3) && Math.abs(me.x - it.x) < 1) { me.fruit++; sfx.banana(); popup('+1 🍌', '#ffd23f'); }
     }
   }
 }
 function physics(dt, t) {
   if (me.h > 0) me.speed = Math.max(me.speed, phase === 'run' ? 3 : 0);
-  if (me.jumpQ > t && me.h === 0 && me.stumble === 0) { me.vh = JUMPV; me.jumpQ = 0; sfx.jump(); }
+  if (me.jumpQ > t && me.h === 0 && me.stumble === 0) {
+    me.vh = JUMPV; me.jumpQ = 0; sfx.jump();
+    if (me.logGrace) { me.logGrace = 0; popup('Great jump!', '#7ee08a'); }
+  }
   if (me.h > 0 || me.vh > 0) { me.vh -= GRAV * dt; me.h = Math.max(0, me.h + me.vh * dt); if (me.h === 0) me.vh = 0; }
 }
 // before a run starts the runner can already jog and jump in place, so kids can try the motion
@@ -439,7 +444,7 @@ function drawPuddle(wz) {
 }
 
 function drawBanana(it, t) {
-  const [bx, by, s, z] = proj(it.x, it.h + Math.sin(t * 4 + it.z) * .05, it.z), r = .22 * s;
+  const [bx, by, s, z] = proj(it.x, it.h + Math.sin(t * 4 + it.z) * .05, it.z), r = .42 * s;
   ctx.globalAlpha = fogAlpha(z);
   ctx.save(); ctx.translate(bx, by); ctx.rotate(-.4 + Math.sin(t * 3 + it.z) * .2);
   ctx.fillStyle = '#ffd23f'; ctx.strokeStyle = '#a3761a'; ctx.lineWidth = Math.max(1, r * .12);

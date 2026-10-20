@@ -69,6 +69,7 @@
   <header>
     <h1>Jungle Jump</h1>
     <span class="pill" id="net">Not connected</span>
+    <span style="position:fixed;right:8px;bottom:4px;font-size:11px;opacity:.4" id="ver"></span>
   </header>
 
   <!-- no room in the link: type the code from the TV -->
@@ -111,7 +112,9 @@
     <div class="opts">Sensitivity
       <span id="sens"><button type="button" data-s="0.75" aria-pressed="false">Low</button> <button type="button" data-s="1" aria-pressed="true">Normal</button> <button type="button" data-s="1.35" aria-pressed="false">High</button></span>
       <button type="button" id="flipBtn" aria-pressed="false">Swap left/right</button>
+      <button type="button" id="dbgBtn" aria-pressed="false">Show sensors</button>
     </div>
+    <pre id="dbg" hidden style="margin:0;width:100%;text-align:left;font-size:14px;background:rgba(255,255,255,.08);border-radius:12px;padding:10px;white-space:pre-wrap"></pre>
     <button class="btn ghost" id="toSetup" type="button">Change players</button>
   </section>
 
@@ -126,6 +129,7 @@
 
 <script src="vendor/peerjs.min.js"></script>
 <script>
+const VERSION = '5';
 const $ = id => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const ANIMALS = { monkey: '🐒', koala: '🐨', bear: '🐻', lion: '🦁' };
@@ -184,6 +188,11 @@ function send(m) { if (conn && conn.open) { try { conn.send(m); } catch (e) {} }
 
 function onTv(d) {
   if (!d || typeof d !== 'object') return;
+  // the TV runs a newer version than this (cached) page: reload with a fresh URL once
+  if (d.v && d.v !== VERSION && !sessionStorage.getItem('jj-reloaded-' + d.v)) {
+    sessionStorage.setItem('jj-reloaded-' + d.v, '1');
+    location.replace(`controller.html?room=${room}&v=${d.v}&t=${Date.now()}`); return;
+  }
   if (d.t === 'roster' && Array.isArray(d.players) && !load('jj-roster', null)) {
     roster = d.players.map(p => ({ name: p.name, animal: p.animal })); renderPlayers();
   }
@@ -212,7 +221,8 @@ let sens = 1, flip = load('jj-flip', false), pocket = load('jj-pocket', false), 
 let roll = 0, neutral = null, recenterAt = 0;
 let manualRun = 0, manualLean = 0;
 const buf = [];
-let ffStart = 0, peakAt = 0, lastJump = 0;
+let lowStart = 0, peakAt = 0, lastJump = 0, jumps = 0, vert = 9.8, minV = 99, maxV = 0;
+const grav = { x: 0, y: -9.8, z: 0 };   // slowly-averaged gravity direction
 
 function onMotion(e) {
   const a = e.accelerationIncludingGravity;
@@ -231,22 +241,29 @@ function onMotion(e) {
   // of the turn. The middle also drifts slowly toward how the phone is held now, so a
   // crooked grip can never keep the runner stuck on one side.
   const r = Math.atan2(a.x, Math.hypot(a.y, a.z)) * 180 / Math.PI;
-  roll += (r - roll) * .15;
+  roll = neutral === null ? r : roll + (r - roll) * .15;
   if (neutral === null || (recenterAt && t >= recenterAt)) { neutral = roll; recenterAt = 0; }
-  neutral += (roll - neutral) * .003;
+  neutral += (roll - neutral) * .006;
   const l = clamp(((roll - neutral) * (flip ? -1 : 1)) / 18, -1, 1);
   lean = pocket || Math.abs(l) < .3 ? 0 : l;
 
-  // jump: weightless moment, or a strong push-off followed by lift-off
-  if (mag > 22 / sens) peakAt = t;
-  if (mag < 4.5) { if (!ffStart) ffStart = t; } else ffStart = 0;
-  const freefall = ffStart && t - ffStart > 110 / sens;
-  const pushOff = t - peakAt < 300 && mag < 6;
-  if ((freefall || pushOff) && t - lastJump > 650) doJump();
+  // jump: we only look at up/down force (along gravity), so arm swings matter less.
+  // Standing still it reads ~9.8. Pushing off reads high, being in the air reads low.
+  grav.x += (a.x - grav.x) * .04; grav.y += (a.y - grav.y) * .04; grav.z += (a.z - grav.z) * .04;
+  const gl = Math.hypot(grav.x, grav.y, grav.z) || 9.8;
+  vert = (a.x * grav.x + a.y * grav.y + a.z * grav.z) / gl;
+  minV = Math.min(minV, vert); maxV = Math.max(maxV, vert);
+  if (vert > 9.8 + 5 / sens) peakAt = t;
+  if (vert < 9.8 - 4.5 * sens) { if (!lowStart) lowStart = t; } else lowStart = 0;
+  const airborne = lowStart && t - lowStart > 70 / sens;
+  const pushOff = t - peakAt < 350 && vert < 9.8 - 2.5 * sens;
+  if ((airborne || pushOff) && t - lastJump > 500) doJump();
+  if (!$('dbg').hidden) $('dbg').textContent =
+    `version ${VERSION}\nup/down ${vert.toFixed(1)}  (min ${minV.toFixed(1)}, max ${maxV.toFixed(1)})\ntilt ${(roll - neutral).toFixed(0)}°  lean ${lean.toFixed(2)}\nrunning ${level.toFixed(2)}  jumps ${jumps}`;
 }
 
 function doJump() {
-  lastJump = performance.now(); ffStart = 0; peakAt = 0;
+  lastJump = performance.now(); lowStart = 0; peakAt = 0; jumps++; minV = 99; maxV = 0;
   send({ t: 'j' });
   if (navigator.vibrate) navigator.vibrate(40);
   $('avatar').classList.add('hop'); setTimeout(() => $('avatar').classList.remove('hop'), 220);
@@ -287,6 +304,7 @@ document.querySelectorAll('#sens button').forEach(b => b.onclick = () => {
   document.querySelectorAll('#sens button').forEach(x => x.setAttribute('aria-pressed', x === b));
 });
 $('flipBtn').setAttribute('aria-pressed', flip);
+$('dbgBtn').onclick = () => { $('dbg').hidden = !$('dbg').hidden; $('dbgBtn').setAttribute('aria-pressed', !$('dbg').hidden); };
 $('flipBtn').onclick = () => { flip = !flip; store('jj-flip', flip); $('flipBtn').setAttribute('aria-pressed', flip); };
 
 // fallback buttons
@@ -309,6 +327,7 @@ function boot() {
   if (!/^[A-Z]{4}$/.test(room)) { show('join'); return; }
   renderPlayers(); show('setup'); connect();
 }
+$('ver').textContent = 'v' + VERSION;
 boot();
 </script>
 </body>
